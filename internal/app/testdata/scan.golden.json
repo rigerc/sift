@@ -1,0 +1,90 @@
+{
+  "root": "WORKSPACE",
+  "members": [],
+  "observations": [
+    {
+      "key": "pkg:npm:novel-framework",
+      "kind": "package",
+      "domain": "npm",
+      "value": "novel-framework",
+      "reason": "declared dependency",
+      "evidence": [
+        "package.json"
+      ],
+      "layer": 2,
+      "member": "."
+    },
+    {
+      "key": "pkg:npm:react",
+      "kind": "package",
+      "domain": "npm",
+      "value": "react",
+      "reason": "declared dependency",
+      "evidence": [
+        "package.json"
+      ],
+      "layer": 2,
+      "member": "."
+    }
+  ],
+  "signals": [
+    {
+      "key": "node:react",
+      "domain": "node",
+      "reasons": [
+        "declared dependency"
+      ],
+      "evidence": [
+        "package.json"
+      ],
+      "confidence": 0.95,
+      "members": null,
+      "rootObserved": true,
+      "layers": [
+        2
+      ]
+    }
+  ],
+  "suggestions": [
+    {
+      "skill": {
+        "source": "vercel-labs/agent-skills",
+        "name": "vercel-react-best-practices"
+      },
+      "confidence": 0.95,
+      "bucket": "suggested",
+      "reasons": [
+        "declared dependency",
+        "technology node:react"
+      ],
+      "evidence": [
+        "package.json"
+      ],
+      "technologies": [
+        "node:react"
+      ],
+      "members": []
+    }
+  ],
+  "unresolved": [
+    {
+      "key": "pkg:npm:novel-framework",
+      "kind": "package",
+      "domain": "npm",
+      "value": "novel-framework",
+      "reason": "declared dependency",
+      "evidence": [
+        "package.json"
+      ],
+      "layer": 2,
+      "member": "."
+    }
+  ],
+  "order": [
+    {
+      "source": "vercel-labs/agent-skills",
+      "name": "vercel-react-best-practices"
+    }
+  ],
+  "warnings": []
+}

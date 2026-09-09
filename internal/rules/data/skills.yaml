@@ -1,0 +1,33 @@
+skill_rules:
+  - technology_id: node:react
+    rule_confidence: 1
+    skills:
+      - source: vercel-labs/agent-skills
+        name: vercel-react-best-practices
+  - technology_id: node:nextjs
+    rule_confidence: 1
+    skills:
+      - source: vercel-labs/agent-skills
+        name: vercel-react-best-practices
+      - source: vercel-labs/agent-skills
+        name: vercel-composition-patterns
+  - technology_id: go:module
+    skills:
+      - source: anthropics/skills
+        name: golang
+  - technology_id: python:project
+    skills:
+      - source: anthropics/skills
+        name: python
+  - technology_id: rust:cargo
+    skills:
+      - source: anthropics/skills
+        name: rust
+  - technology_id: infra:terraform
+    skills:
+      - source: hashicorp/agent-skills
+        name: terraform
+  - technology_id: infra:docker
+    skills:
+      - source: docker/skills
+        name: docker

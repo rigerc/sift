@@ -1,0 +1,22 @@
+technologies:
+  - id: node:react
+    name: React
+    domain: node
+  - id: node:nextjs
+    name: Next.js
+    domain: node
+  - id: go:module
+    name: Go
+    domain: go
+  - id: python:project
+    name: Python
+    domain: python
+  - id: rust:cargo
+    name: Rust
+    domain: rust
+  - id: infra:terraform
+    name: Terraform
+    domain: infrastructure
+  - id: infra:docker
+    name: Docker
+    domain: infrastructure

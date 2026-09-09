@@ -1,0 +1,11 @@
+combos:
+  - id: nextjs-react
+    triggers: [node:nextjs, node:react]
+    skills:
+      - source: vercel-labs/agent-skills
+        name: vercel-react-best-practices
+    order:
+      - source: vercel-labs/agent-skills
+        name: vercel-react-best-practices
+      - source: vercel-labs/agent-skills
+        name: vercel-composition-patterns

@@ -1,0 +1,34 @@
+detection_rules:
+  - technology_id: node:react
+    detect:
+      packages: [react, react-dom]
+      manifests: [package.json]
+  - technology_id: node:nextjs
+    detect:
+      packages: [next]
+      config_files:
+        - pattern: next.config.*
+          mode: glob
+      manifests: [package.json]
+  - technology_id: go:module
+    detect:
+      manifests: [go.mod]
+  - technology_id: python:project
+    detect:
+      manifests: [pyproject.toml, requirements.txt]
+      config_files:
+        - pattern: manage.py
+          mode: exact
+  - technology_id: rust:cargo
+    detect:
+      manifests: [Cargo.toml]
+  - technology_id: infra:terraform
+    detect:
+      file_extensions:
+        - extension: .tf
+          min_count: 1
+  - technology_id: infra:docker
+    detect:
+      config_files:
+        - pattern: Dockerfile
+          mode: exact
