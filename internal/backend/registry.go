@@ -39,6 +39,15 @@ func Register(kind string, f Factory) {
 	factories.m[kind] = f
 }
 
+// FactoryFor returns the registered constructor for a backend type. Setup
+// tooling uses it to build adapters for types that are not yet configured.
+func FactoryFor(kind string) (Factory, bool) {
+	factories.RLock()
+	defer factories.RUnlock()
+	f, ok := factories.m[kind]
+	return f, ok
+}
+
 func NewRegistry(configs []Config, strategy Strategy) (*Registry, error) {
 	if strategy == "" {
 		strategy = StrategyFanout

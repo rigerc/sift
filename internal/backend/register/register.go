@@ -30,3 +30,18 @@ func New(configs []backend.Config, strategy backend.Strategy) (*backend.Registry
 	}
 	return backend.NewRegistry(configs, strategy)
 }
+
+// CLIInfo describes a built-in local CLI backend for setup tooling.
+type CLIInfo struct {
+	Type, Binary, PinnedVersion string
+}
+
+// CLIBackends lists the built-in process-CLI backends. These run local
+// binaries, so availability can be verified without configuration.
+func CLIBackends() []CLIInfo {
+	return []CLIInfo{
+		{Type: "askill", Binary: askill.Binary, PinnedVersion: askill.PinnedVersion},
+		{Type: "skillfish", Binary: skillfish.Binary, PinnedVersion: skillfish.PinnedVersion},
+		{Type: "smithery", Binary: smithery.Binary, PinnedVersion: smithery.PinnedVersion},
+	}
+}

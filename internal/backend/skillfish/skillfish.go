@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	pinnedVersion = "1.0.39"
-	binaryName    = "skillfish"
+	// Binary and PinnedVersion are exported for setup tooling (backends check).
+	Binary        = "skillfish"
+	PinnedVersion = "1.0.39"
 )
 
 var allowedFlags = []string{"-l", "--json", "--limit"}
@@ -29,12 +30,12 @@ type Adapter struct {
 
 // New builds the adapter. cfg.URL may override the binary path for testing.
 func New(cfg backend.Config) (backend.Backend, error) {
-	binary := binaryName
+	binary := Binary
 	if cfg.URL != "" {
 		binary = cfg.URL
 	}
 	inner := &clix.Exec{Secrets: clix.ResolveSecrets(cfg.Auth)}
-	return &Adapter{name: cfg.Name, binary: binary, runner: clix.NewPinned(inner, binary, pinnedVersion)}, nil
+	return &Adapter{name: cfg.Name, binary: binary, runner: clix.NewPinned(inner, binary, PinnedVersion)}, nil
 }
 
 func (a *Adapter) Name() string { return a.name }

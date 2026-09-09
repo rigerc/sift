@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	pinnedVersion = "0.1.15"
-	binaryName    = "askill"
+	// Binary and PinnedVersion are exported for setup tooling (backends check).
+	Binary        = "askill"
+	PinnedVersion = "0.1.15"
 )
 
 var allowedFlags = []string{"--json", "--limit", "--page", "--tag"}
@@ -29,12 +30,12 @@ type Adapter struct {
 // New builds the adapter. cfg.URL may override the binary path for testing;
 // cfg.Auth (env:NAME or literal) is treated as a secret to redact.
 func New(cfg backend.Config) (backend.Backend, error) {
-	binary := binaryName
+	binary := Binary
 	if cfg.URL != "" {
 		binary = cfg.URL
 	}
 	inner := &clix.Exec{Secrets: clix.ResolveSecrets(cfg.Auth)}
-	return &Adapter{name: cfg.Name, binary: binary, runner: clix.NewPinned(inner, binary, pinnedVersion)}, nil
+	return &Adapter{name: cfg.Name, binary: binary, runner: clix.NewPinned(inner, binary, PinnedVersion)}, nil
 }
 
 func (a *Adapter) Name() string { return a.name }

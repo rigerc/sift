@@ -25,7 +25,7 @@ func (f *fakeRunner) Run(ctx context.Context, binary string, allowed []string, a
 }
 
 func newTestAdapter(runner clix.Runner) *Adapter {
-	return &Adapter{name: "skillfish", binary: binaryName, runner: runner}
+	return &Adapter{name: "skillfish", binary: Binary, runner: runner}
 }
 
 func TestSearchParsesGoldenEnvelope(t *testing.T) {
@@ -116,16 +116,16 @@ func asClixError(err error, target **clix.Error) bool {
 
 func TestProbeReportsPinnedVersion(t *testing.T) {
 	runner := &fakeRunner{stdout: "cli 9.9.9\n"}
-	a := newTestAdapter(clix.NewPinned(runner, binaryName, pinnedVersion))
+	a := newTestAdapter(clix.NewPinned(runner, Binary, PinnedVersion))
 	if _, err := a.Probe(context.Background()); err == nil {
 		t.Fatal("expected drift failure")
 	}
-	runner.stdout = "cli " + pinnedVersion + "\n"
-	version, err := newTestAdapter(clix.NewPinned(runner, binaryName, pinnedVersion)).Probe(context.Background())
+	runner.stdout = "cli " + PinnedVersion + "\n"
+	version, err := newTestAdapter(clix.NewPinned(runner, Binary, PinnedVersion)).Probe(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if version != pinnedVersion {
+	if version != PinnedVersion {
 		t.Fatalf("unexpected version %q", version)
 	}
 }

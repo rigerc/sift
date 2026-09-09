@@ -375,6 +375,24 @@ func capabilityNames(c backend.Capability) string {
 	return strings.Join(names, ",")
 }
 
+// probeCLIBackend builds the built-in adapter for a CLI backend type and runs
+// its pinned-version probe, used to report availability before configuration.
+func probeCLIBackend(ctx context.Context, info register.CLIInfo) (string, error) {
+	factory, ok := backend.FactoryFor(info.Type)
+	if !ok {
+		return "", fmt.Errorf("backend type %q is not registered", info.Type)
+	}
+	adapter, err := factory(backend.Config{Name: info.Type, Type: info.Type})
+	if err != nil {
+		return "", err
+	}
+	prober, ok := adapter.(backend.VersionProber)
+	if !ok {
+		return "", fmt.Errorf("backend %s does not support version probing", info.Type)
+	}
+	return prober.Probe(ctx)
+}
+
 func newBackendsCommand() *cobra.Command {
 	var jsonOut bool
 	var path string
@@ -396,6 +414,10 @@ func newBackendsCommand() *cobra.Command {
 		}
 		if jsonOut {
 			return report.JSON(c.OutOrStdout(), rows)
+		}
+		if len(rows) == 0 {
+			_, _ = fmt.Fprintln(c.OutOrStdout(), "no backends configured")
+			return nil
 		}
 		for _, r := range rows {
 			if _, err := fmt.Fprintf(c.OutOrStdout(), "%s\t%s\t%s\n", r.Name, r.Type, r.Capabilities); err != nil {
@@ -419,6 +441,7 @@ func newBackendsCommand() *cobra.Command {
 			Name, Type, Status, Version, Config string
 		}
 		rows := []row{}
+		configuredTypes := map[string]bool{}
 		if len(cfgs) > 0 {
 			registry, err := register.New(cfgs, strategy)
 			if err != nil {
@@ -429,6 +452,7 @@ func newBackendsCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				configuredTypes[cfg.Type] = true
 				r := row{Name: cfg.Name, Type: cfg.Type, Status: "remote", Version: "-", Config: selected}
 				if prober, ok := adapter.(backend.VersionProber); ok {
 					version, err := prober.Probe(commandContext(c))
@@ -442,6 +466,22 @@ func newBackendsCommand() *cobra.Command {
 				}
 				rows = append(rows, r)
 			}
+		}
+		// Built-in CLI backends are always reported, even unconfigured, so
+		// the command doubles as a setup aid: it shows what could be enabled.
+		for _, info := range register.CLIBackends() {
+			if configuredTypes[info.Type] {
+				continue
+			}
+			r := row{Name: info.Type, Type: info.Type, Status: "unavailable", Version: "-", Config: "-"}
+			version, err := probeCLIBackend(commandContext(c), info)
+			if version != "" {
+				r.Version = version
+			}
+			if err == nil {
+				r.Status = "ready"
+			}
+			rows = append(rows, r)
 		}
 		if jsonOut {
 			return report.JSON(c.OutOrStdout(), rows)
@@ -457,6 +497,7 @@ func newBackendsCommand() *cobra.Command {
 		}
 		return nil
 	}}
+	check.Flags().BoolVar(&jsonOut, "json", false, "Emit JSON")
 	check.Flags().StringVar(&path, "backends", "", "Backend configuration path")
 	c := &cobra.Command{Use: "backends", Short: "Inspect discovery backends"}
 	c.AddCommand(list, check)
