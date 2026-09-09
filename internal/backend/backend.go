@@ -25,6 +25,11 @@ type CatalogProvider interface {
 	Catalog(context.Context) (rules.Catalog, error)
 }
 
+// VersionProber reports the installed CLI version for local backends.
+type VersionProber interface {
+	Probe(context.Context) (string, error)
+}
+
 type Verdict int
 
 const (

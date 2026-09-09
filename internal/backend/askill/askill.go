@@ -39,6 +39,15 @@ func New(cfg backend.Config) (backend.Backend, error) {
 
 func (a *Adapter) Name() string { return a.name }
 
+// Probe reports the installed CLI version, failing on version drift.
+func (a *Adapter) Probe(ctx context.Context) (string, error) {
+	stdout, _, err := a.runner.Run(ctx, a.binary, []string{"--version"}, []string{"--version"})
+	if err != nil {
+		return "", err
+	}
+	return clix.ParseVersion(string(stdout)), nil
+}
+
 type envelope struct {
 	OK    bool      `json:"ok"`
 	Data  results   `json:"data"`

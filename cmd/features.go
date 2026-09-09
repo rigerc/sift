@@ -406,7 +406,59 @@ func newBackendsCommand() *cobra.Command {
 	}}
 	list.Flags().BoolVar(&jsonOut, "json", false, "Emit JSON")
 	list.Flags().StringVar(&path, "backends", "", "Backend configuration path")
+	check := &cobra.Command{Use: "check", Short: "Verify backend availability and pinned CLI versions", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
+		file, selected, err := config.LoadBackends(path, filepath.Dir(GetConfigFile()))
+		if err != nil {
+			return err
+		}
+		cfgs, strategy, err := file.Runtime()
+		if err != nil {
+			return err
+		}
+		type row struct {
+			Name, Type, Status, Version, Config string
+		}
+		rows := []row{}
+		if len(cfgs) > 0 {
+			registry, err := register.New(cfgs, strategy)
+			if err != nil {
+				return err
+			}
+			for _, cfg := range cfgs {
+				adapter, err := registry.Get(cfg.Name)
+				if err != nil {
+					return err
+				}
+				r := row{Name: cfg.Name, Type: cfg.Type, Status: "remote", Version: "-", Config: selected}
+				if prober, ok := adapter.(backend.VersionProber); ok {
+					version, err := prober.Probe(commandContext(c))
+					r.Status, r.Version = "unavailable", "-"
+					if version != "" {
+						r.Version = version
+					}
+					if err == nil {
+						r.Status = "ready"
+					}
+				}
+				rows = append(rows, r)
+			}
+		}
+		if jsonOut {
+			return report.JSON(c.OutOrStdout(), rows)
+		}
+		if len(rows) == 0 {
+			_, _ = fmt.Fprintln(c.OutOrStdout(), "no backends configured")
+			return nil
+		}
+		for _, r := range rows {
+			if _, err := fmt.Fprintf(c.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", r.Name, r.Type, r.Status, r.Version, r.Config); err != nil {
+				return err
+			}
+		}
+		return nil
+	}}
+	check.Flags().StringVar(&path, "backends", "", "Backend configuration path")
 	c := &cobra.Command{Use: "backends", Short: "Inspect discovery backends"}
-	c.AddCommand(list)
+	c.AddCommand(list, check)
 	return c
 }

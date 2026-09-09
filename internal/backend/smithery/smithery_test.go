@@ -89,3 +89,19 @@ func TestSearchEmptyQuerySkipsExecution(t *testing.T) {
 		t.Fatalf("expected no execution, got %v", runner.args)
 	}
 }
+
+func TestProbeReportsPinnedVersion(t *testing.T) {
+	runner := &fakeRunner{stdout: "cli 9.9.9\n"}
+	a := newTestAdapter(clix.NewPinned(runner, binaryName, pinnedVersion))
+	if _, err := a.Probe(context.Background()); err == nil {
+		t.Fatal("expected drift failure")
+	}
+	runner.stdout = "cli " + pinnedVersion + "\n"
+	version, err := newTestAdapter(clix.NewPinned(runner, binaryName, pinnedVersion)).Probe(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != pinnedVersion {
+		t.Fatalf("unexpected version %q", version)
+	}
+}

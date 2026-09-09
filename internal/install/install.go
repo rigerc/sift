@@ -29,6 +29,30 @@ var (
 	skillSafe  = regexp.MustCompile(`[^a-z0-9._]+`)
 )
 
+// Backend sources dispatch to their own pinned CLI instead of the upstream
+// skills CLI. Empty backend means the GitHub-repo/URL/local skills path.
+const (
+	BackendAskill    = "askill"
+	BackendSkillfish = "skillfish"
+	BackendSmithery  = "smithery"
+)
+
+var backendBinaries = map[string]string{
+	BackendAskill:    "askill",
+	BackendSkillfish: "skillfish",
+	BackendSmithery:  "smithery",
+}
+
+// BackendForSource reports which CLI manages a source; empty means the pinned
+// upstream skills CLI handles it (GitHub repos, HTTPS URLs, local paths).
+func BackendForSource(source string) string {
+	switch s := canonicalSource(source); s {
+	case BackendAskill, BackendSkillfish, BackendSmithery:
+		return s
+	}
+	return ""
+}
+
 func canonicalSource(s string) string {
 	s = strings.TrimSuffix(strings.TrimSpace(s), "/")
 	if u, err := url.Parse(s); err == nil && strings.EqualFold(u.Scheme, "https") && strings.EqualFold(u.Hostname(), "github.com") && u.User == nil && u.RawQuery == "" && u.Fragment == "" {
@@ -60,9 +84,10 @@ type Options struct {
 	AllowLocal bool     `json:"-"`
 }
 type Batch struct {
-	Source string   `json:"source"`
-	Skills []string `json:"skills"`
-	Argv   []string `json:"argv"`
+	Source  string   `json:"source"`
+	Backend string   `json:"backend,omitempty"`
+	Skills  []string `json:"skills"`
+	Argv    []string `json:"argv"`
 }
 type Plan struct {
 	Root    string   `json:"root"`
@@ -79,8 +104,15 @@ func safeValue(s string, limit int) bool {
 }
 
 func ValidateRef(ref model.SkillRef, allowLocal bool) error {
-	if !safeValue(ref.Name, 200) || strings.ContainsAny(ref.Name, `/\`) || ref.Name == "." || ref.Name == ".." || ref.Name == "*" {
+	if !safeValue(ref.Name, 200) || ref.Name == "." || ref.Name == ".." || ref.Name == "*" {
 		return fmt.Errorf("invalid skill name %q", ref.Name)
+	}
+	backend := BackendForSource(ref.Source)
+	if backend == "" && strings.ContainsAny(ref.Name, `/\`) {
+		return fmt.Errorf("invalid skill name %q", ref.Name)
+	}
+	if backend != "" {
+		return nil
 	}
 	s := ref.Source
 	if !safeValue(s, 2048) || strings.TrimSpace(s) != s {
@@ -140,17 +172,65 @@ func Build(root string, refs []model.SkillRef, opts Options) (Plan, error) {
 			continue
 		}
 		seen[ref.Key()] = true
-		n := len(p.Batches)
-		if n == 0 || p.Batches[n-1].Source != ref.Source {
-			p.Batches = append(p.Batches, Batch{Source: ref.Source})
-			n++
+		if backend := BackendForSource(ref.Source); backend != "" {
+			// Backend CLIs take a single skill argument per invocation.
+			p.Batches = append(p.Batches, Batch{Source: ref.Source, Backend: backend, Skills: []string{ref.Name}})
+		} else {
+			n := len(p.Batches)
+			if n == 0 || p.Batches[n-1].Source != ref.Source || p.Batches[n-1].Backend != "" {
+				p.Batches = append(p.Batches, Batch{Source: ref.Source})
+				n++
+			}
+			p.Batches[n-1].Skills = append(p.Batches[n-1].Skills, ref.Name)
 		}
-		p.Batches[n-1].Skills = append(p.Batches[n-1].Skills, ref.Name)
 	}
 	for i := range p.Batches {
+		if p.Batches[i].Backend != "" {
+			p.Batches[i].Argv = BackendArgs(p.Batches[i], agents, opts.Global)
+			continue
+		}
 		p.Batches[i].Argv = AddArgs(p.Batches[i], agents, opts.Global)
 	}
 	return p, nil
+}
+
+// BackendArgs builds argv for backend-managed batches per each CLI's
+// documented install contract (rev5 §2). Build guarantees one skill per batch.
+func BackendArgs(b Batch, agents []string, global bool) []string {
+	var args []string
+	switch b.Backend {
+	case BackendAskill:
+		args = []string{"add", b.Skills[0]}
+		for _, a := range agents {
+			args = append(args, "-a", a)
+		}
+		if global {
+			args = append(args, "-g")
+		}
+		return append(args, "-y")
+	case BackendSkillfish:
+		args = []string{"add", b.Skills[0]}
+		for _, a := range agents {
+			args = append(args, "--agent", a)
+		}
+		if global {
+			args = append(args, "--global")
+		} else {
+			args = append(args, "--project")
+		}
+		return append(args, "-y")
+	case BackendSmithery:
+		args = []string{"skill", "add", b.Skills[0]}
+		for _, a := range agents {
+			args = append(args, "--agent", a)
+		}
+		if global {
+			args = append(args, "-g")
+		}
+		return args
+	default:
+		return AddArgs(b, agents, global)
+	}
 }
 
 func AddArgs(b Batch, agents []string, global bool) []string {
@@ -222,12 +302,35 @@ func Preflight(ctx context.Context) error {
 	return nil
 }
 
+// PreflightBackends verifies every backend CLI referenced by the plan exists
+// on PATH before any state mutation.
+func PreflightBackends(p Plan) error {
+	seen := map[string]bool{}
+	for _, b := range p.Batches {
+		if b.Backend == "" || seen[b.Backend] {
+			continue
+		}
+		seen[b.Backend] = true
+		binary, ok := backendBinaries[b.Backend]
+		if !ok {
+			return fmt.Errorf("unknown backend %q", b.Backend)
+		}
+		if _, err := exec.LookPath(binary); err != nil {
+			return fmt.Errorf("backend %s requires %s on PATH: %w", b.Backend, binary, err)
+		}
+	}
+	return nil
+}
+
 func Execute(ctx context.Context, p Plan, runner Runner, out io.Writer) error {
 	if len(p.Batches) == 0 {
 		return nil
 	}
 	if runner == nil {
 		if err := Preflight(ctx); err != nil {
+			return err
+		}
+		if err := PreflightBackends(p); err != nil {
 			return err
 		}
 		runner = ExecRunner{}
@@ -264,7 +367,11 @@ func Execute(ctx context.Context, p Plan, runner Runner, out io.Writer) error {
 		if _, err := Build(p.Root, refs, Options{Agents: p.Agents, Global: p.Scope == "global", AllowLocal: true}); err != nil {
 			return err
 		}
-		if err := runner.Run(ctx, p.Root, "npx", AddArgs(b, p.Agents, p.Scope == "global"), out); err != nil {
+		if b.Backend != "" {
+			if err := runner.Run(ctx, p.Root, backendBinaries[b.Backend], BackendArgs(b, p.Agents, p.Scope == "global"), out); err != nil {
+				return err
+			}
+		} else if err := runner.Run(ctx, p.Root, "npx", AddArgs(b, p.Agents, p.Scope == "global"), out); err != nil {
 			return err
 		}
 		if err := TrackBatch(p, &state, b); err != nil {

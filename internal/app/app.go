@@ -4,6 +4,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"go-s/config"
+	"go-s/internal/backend"
+	"go-s/internal/backend/register"
 	"go-s/internal/detect"
 	"go-s/internal/install"
 	"go-s/internal/model"
@@ -17,6 +20,9 @@ import (
 type Service struct {
 	Runner install.Runner
 	Output io.Writer
+	// RegistryBuilder constructs the discovery registry; tests inject fakes.
+	// nil selects the built-in adapter registry.
+	RegistryBuilder func([]backend.Config, backend.Strategy) (*backend.Registry, error)
 }
 type ScanOptions struct {
 	Catalog      string
@@ -59,9 +65,78 @@ func (s Service) Scan(ctx context.Context, root string, opts ScanOptions) (model
 		return model.ScanResult{}, err
 	}
 	warnings := append([]string{}, detection.Warnings...)
+	suggestions := resolved.Suggestions
+	if opts.Online {
+		external, backendWarnings := s.discover(ctx, opts, detection.Unresolved, signals)
+		suggestions = append(suggestions, external...)
+		warnings = append(warnings, backendWarnings...)
+	}
 	slices.Sort(warnings)
 	warnings = slices.Compact(warnings)
-	return model.ScanResult{Root: manifest.Root, Members: members, Observations: detection.Observations, Signals: signals, ResolveResult: resolved, Warnings: warnings}, nil
+	return model.ScanResult{Root: manifest.Root, Members: members, Observations: detection.Observations, Signals: signals, ResolveResult: model.ResolveResult{Suggestions: suggestions, Unresolved: resolved.Unresolved, Order: resolved.Order}, Warnings: warnings}, nil
+}
+
+const (
+	discoveryObservationCap = 8
+	discoveryContextCap     = 8
+	discoveryResultLimit    = 20
+)
+
+// discover fans the query out to the configured discovery backends (rev5 §6).
+// Individual backend failures degrade to warnings; they never fail the scan.
+// Results land in the external bucket: never auto-selected, never installed
+// by --yes, and only installed after explicit user selection.
+func (s Service) discover(ctx context.Context, opts ScanOptions, unresolved []model.Observation, signals []model.MergedSignal) ([]model.Suggestion, []string) {
+	if len(unresolved) > discoveryObservationCap {
+		unresolved = unresolved[:discoveryObservationCap]
+	}
+	if len(signals) > discoveryContextCap {
+		signals = signals[:discoveryContextCap]
+	}
+	file, _, err := config.LoadBackends(opts.BackendsPath, opts.ConfigDir)
+	if err != nil {
+		return nil, []string{"backends config: " + err.Error()}
+	}
+	cfgs, strategy, err := file.Runtime()
+	if err != nil {
+		return nil, []string{"backends config: " + err.Error()}
+	}
+	if len(cfgs) == 0 {
+		return nil, nil
+	}
+	build := s.RegistryBuilder
+	if build == nil {
+		build = register.New
+	}
+	registry, err := build(cfgs, strategy)
+	if err != nil {
+		return nil, []string{"backends config: " + err.Error()}
+	}
+	found, errs := registry.Search(ctx, backend.Query{Unresolved: unresolved, Context: signals, Limit: discoveryResultLimit})
+	warnings := make([]string, 0, len(errs))
+	for _, err := range errs {
+		warnings = append(warnings, "backend discovery: "+err.Error())
+	}
+	out := make([]model.Suggestion, 0, len(found))
+	for _, v := range found {
+		reason := v.Reason
+		if reason == "" {
+			reason = "matched by " + v.SourceBackend
+		}
+		var evidence []string
+		if v.Title != "" {
+			evidence = []string{v.Title}
+		}
+		out = append(out, model.Suggestion{
+			Skill:         v.Skill,
+			Bucket:        "external",
+			Reasons:       []string{reason},
+			Evidence:      evidence,
+			SourceBackend: v.SourceBackend,
+			ExternalScore: v.ExternalScore,
+		})
+	}
+	return out, warnings
 }
 
 // PlanInstall restores resolver order after UI selection. A nil selection picks suggested locals.
