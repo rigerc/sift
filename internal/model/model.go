@@ -6,11 +6,12 @@ import "strings"
 type ObservationKind string
 
 const (
-	ObsPackage ObservationKind = "package"
-	ObsConfig  ObservationKind = "config"
-	ObsExt     ObservationKind = "extension"
-	ObsContent ObservationKind = "content"
-	ObsContext ObservationKind = "context"
+	ObsPackage  ObservationKind = "package"
+	ObsConfig   ObservationKind = "config"
+	ObsExt      ObservationKind = "extension"
+	ObsContent  ObservationKind = "content"
+	ObsContext  ObservationKind = "context"
+	ObsManifest ObservationKind = "manifest"
 )
 
 type Observation struct {

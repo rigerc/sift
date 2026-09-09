@@ -2,14 +2,12 @@ detection_rules:
   - technology_id: node:react
     detect:
       packages: [react, react-dom]
-      manifests: [package.json]
   - technology_id: node:nextjs
     detect:
       packages: [next]
       config_files:
         - pattern: next.config.*
           mode: glob
-      manifests: [package.json]
   - technology_id: go:module
     detect:
       manifests: [go.mod]

@@ -48,13 +48,21 @@ func (f *scanFlags) bind(c *cobra.Command) {
 	c.Flags().IntVar(&f.depth, "max-depth", 8, "Maximum filesystem depth")
 }
 
-func (f scanFlags) options() app.ScanOptions {
+// options builds scan options. onlineChanged reports whether --online was
+// explicitly passed; otherwise the configured scan.online default wins.
+func (f scanFlags) options(onlineChanged bool) app.ScanOptions {
 	catalog := f.catalog
 	if catalog == "" {
 		catalog = os.Getenv("SKILLSCAN_CATALOG_URL")
 	}
 	catalog = strings.TrimPrefix(catalog, "file://")
-	return app.ScanOptions{Catalog: catalog, MaxDepth: f.depth, Online: f.online, BackendsPath: f.backends, ConfigDir: filepath.Dir(GetConfigFile())}
+	online := f.online
+	if !online && !onlineChanged {
+		if r := Runtime(); r != nil {
+			online = r.Config.Config.Scan.Online
+		}
+	}
+	return app.ScanOptions{Catalog: catalog, MaxDepth: f.depth, Online: online, BackendsPath: f.backends, ConfigDir: filepath.Dir(GetConfigFile())}
 }
 
 func newScanCommand() *cobra.Command {
@@ -79,14 +87,14 @@ func newScanCommand() *cobra.Command {
 			// Full-screen BubbleTea results screen; main.go launches it
 			// from the pending TUIRequest. Interactive conflicts with
 			// machine output and automation flags.
-			tuiReq = &TUIRequest{Screen: "scan", ScanRoot: root, ScanOpts: f.options()}
+			tuiReq = &TUIRequest{Screen: "scan", ScanRoot: root, ScanOpts: f.options(c.Flags().Changed("online"))}
 			runUI = true
 			return nil
 		}
 		if yes {
 			// Automation path: install suggested local skills without prompts.
 			svc := app.Service{Output: c.ErrOrStderr()}
-			result, err := svc.Scan(commandContext(c), root, f.options())
+			result, err := svc.Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 			if err != nil {
 				return err
 			}
@@ -94,14 +102,14 @@ func newScanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := validatePlan(commandContext(c), plan, f.options(), allow); err != nil {
+			if err := validatePlan(commandContext(c), plan, f.options(c.Flags().Changed("online")), allow); err != nil {
 				return err
 			}
 			return svc.Install(commandContext(c), plan)
 		}
 		if dry {
 			svc := app.Service{Output: c.ErrOrStderr()}
-			result, err := svc.Scan(commandContext(c), root, f.options())
+			result, err := svc.Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 			if err != nil {
 				return err
 			}
@@ -113,7 +121,7 @@ func newScanCommand() *cobra.Command {
 		}
 		if f.json {
 			svc := app.Service{Output: c.ErrOrStderr()}
-			result, err := svc.Scan(commandContext(c), root, f.options())
+			result, err := svc.Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 			if err != nil {
 				return err
 			}
@@ -122,7 +130,7 @@ func newScanCommand() *cobra.Command {
 		if !isTTY() {
 			// Headless default: deterministic table for pipes and CI.
 			svc := app.Service{Output: c.ErrOrStderr()}
-			result, err := svc.Scan(commandContext(c), root, f.options())
+			result, err := svc.Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 			if err != nil {
 				return err
 			}
@@ -131,7 +139,7 @@ func newScanCommand() *cobra.Command {
 		// TTY default: guided huh flow — print the table first so the
 		// selection prompt has context, then MultiSelect + ConfirmPlan.
 		svc := app.Service{Output: c.ErrOrStderr()}
-		result, err := svc.Scan(commandContext(c), root, f.options())
+		result, err := svc.Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 		if err != nil {
 			return err
 		}
@@ -156,7 +164,7 @@ func newScanCommand() *cobra.Command {
 		if !ok {
 			return nil
 		}
-		if err := validatePlan(commandContext(c), plan, f.options(), allow); err != nil {
+		if err := validatePlan(commandContext(c), plan, f.options(c.Flags().Changed("online")), allow); err != nil {
 			return err
 		}
 		return svc.Install(commandContext(c), plan)
@@ -288,7 +296,7 @@ func newAgentCommand() *cobra.Command {
 		if len(args) == 1 {
 			root = args[0]
 		}
-		result, err := (app.Service{}).Scan(commandContext(c), root, f.options())
+		result, err := (app.Service{}).Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 		if err != nil {
 			return err
 		}

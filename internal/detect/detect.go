@@ -89,6 +89,11 @@ func manifestObs(in walk.Result, m walk.Member, rules []model.DetectionRule) []m
 		if !manifestCandidate(base, rules) {
 			continue
 		}
+		// The manifest file itself is a technology signal for rules that
+		// declare it (go:module, python:project, ...).
+		if manifestRuleTarget(base, rules) {
+			out = append(out, model.Observation{Key: "manifest:" + base, Kind: model.ObsManifest, Domain: manifestDomain(base), Value: base, Reason: "build manifest", Evidence: []string{f.Path}, Layer: 2, Member: m.Root})
+		}
 		b, err := readBounded(in.Root, f.Path, 1<<20)
 		if err != nil {
 			continue
@@ -100,6 +105,20 @@ func manifestObs(in walk.Result, m walk.Member, rules []model.DetectionRule) []m
 		}
 	}
 	return out
+}
+
+// manifestRuleTarget reports whether any detection rule declares base as a
+// manifest signal. Manifests used only for package extraction (package.json)
+// stay out of the observation stream.
+func manifestRuleTarget(base string, rules []model.DetectionRule) bool {
+	for _, r := range rules {
+		for _, x := range r.Detect.Manifests {
+			if x == base {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func manifestCandidate(base string, rules []model.DetectionRule) bool {
@@ -158,14 +177,25 @@ func packages(base, s string) []string {
 		return uniqSorted(append(jsonMapKeys(s, "require"), jsonMapKeys(s, "require-dev")...))
 	case "go.mod":
 		var o []string
-		for _, l := range strings.Split(s, "\n") {
-			f := strings.Fields(l)
-			if len(f) >= 2 && (f[0] == "require" || strings.HasPrefix(l, "\t")) {
-				if f[0] == "require" {
-					o = append(o, f[1])
-				} else {
-					o = append(o, f[0])
-				}
+		inBlock := false
+		for _, line := range strings.Split(s, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "//") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
+				continue
+			}
+			switch {
+			case fields[0] == "require" && len(fields) >= 2 && strings.HasPrefix(fields[1], "("):
+				inBlock = true
+			case fields[0] == "require" && len(fields) >= 2:
+				o = append(o, fields[1])
+			case fields[0] == ")":
+				inBlock = false
+			case inBlock:
+				o = append(o, fields[0])
 			}
 		}
 		return uniqSorted(o)
@@ -480,6 +510,12 @@ func ruleMatches(o model.Observation, r model.DetectionRule) bool {
 			}
 		}
 		for _, x := range d.Directories {
+			if x == o.Value {
+				return true
+			}
+		}
+	case model.ObsManifest:
+		for _, x := range d.Manifests {
 			if x == o.Value {
 				return true
 			}

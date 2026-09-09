@@ -127,3 +127,61 @@ func TestManifestDependencyTables(t *testing.T) {
 		}
 	}
 }
+
+func TestManifestSignalFiresForGoModule(t *testing.T) {
+	root := t.TempDir()
+	body := "module x\n\ngo 1.25\n\nrequire (\n\tgithub.com/spf13/cobra v1.8.0 // comment\n)\n\nrequire github.com/foo/bar v0.1.0\n"
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w, err := walk.Run(context.Background(), root, walk.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := []model.DetectionRule{{TechnologyID: "go:module", Detect: model.DetectConfig{Manifests: []string{"go.mod"}}}}
+	d, err := Run(context.Background(), w, rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, s := range d.Signals {
+		found[s.Key] = true
+	}
+	if !found["go:module"] {
+		t.Fatalf("go:module signal missing: %+v", d.Signals)
+	}
+	got := map[string]bool{}
+	for _, o := range d.Observations {
+		if o.Kind == model.ObsPackage {
+			got[o.Value] = true
+		}
+	}
+	for _, want := range []string{"github.com/spf13/cobra", "github.com/foo/bar"} {
+		if !got[want] {
+			t.Errorf("go.mod parser missing %q: %v", want, got)
+		}
+	}
+	if got["("] || got["require"] {
+		t.Errorf("go.mod parser leaked syntax tokens: %v", got)
+	}
+}
+
+func TestManifestObservationAbsentWithoutRule(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w, err := walk.Run(context.Background(), root, walk.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := Run(context.Background(), w, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range d.Observations {
+		if o.Kind == model.ObsManifest {
+			t.Fatalf("unexpected manifest observation without rules: %+v", o)
+		}
+	}
+}
