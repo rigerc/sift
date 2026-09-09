@@ -4,10 +4,13 @@ package register
 import (
 	"fmt"
 	"go-s/internal/backend"
+	"go-s/internal/backend/askill"
 	"go-s/internal/backend/catalog"
 	"go-s/internal/backend/githubtrees"
 	"go-s/internal/backend/semantic"
+	"go-s/internal/backend/skillfish"
 	"go-s/internal/backend/skillssh"
+	"go-s/internal/backend/smithery"
 )
 
 func init() {
@@ -15,6 +18,9 @@ func init() {
 	backend.Register("github-trees", githubtrees.New)
 	backend.Register("semantic", semantic.New)
 	backend.Register("catalog", catalog.New)
+	backend.Register("askill", askill.New)
+	backend.Register("skillfish", skillfish.New)
+	backend.Register("smithery", smithery.New)
 }
 
 // New constructs a registry with all built-in adapter types registered.

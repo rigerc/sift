@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "exit_code": 0,
+  "errors": [],
+  "results": [
+    {"name": "k8s-debug", "repo": "acme/skills", "description": "Cluster triage", "score": 0.88},
+    {"name": "sql-tune", "repo": "", "description": "Query plans", "score": 0.41}
+  ]
+}
