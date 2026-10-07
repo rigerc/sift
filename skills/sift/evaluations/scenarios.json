@@ -1,0 +1,37 @@
+[
+  {
+    "id": "offline-shortlist",
+    "query": "Review this React/TypeScript monorepo and tell me which coding-agent skills are worth adding. No network access or installation; please cite the workspace files that justify each choice.",
+    "expected_behavior": [
+      "Checks whether sift is available and uses the supplied workspace rather than an invented path",
+      "Uses offline agent assessment or offline JSON scan, and checks signals against repository evidence",
+      "Separates locally suggested skills from other buckets, reports uncertainty, and does not install anything"
+    ]
+  },
+  {
+    "id": "codex-plan-only",
+    "query": "Make a reviewable project-scoped Codex skill installation plan for this workspace. Do not apply it; I only want commands to inspect.",
+    "expected_behavior": [
+      "Runs sift scan with --online=false --dry-run --agent codex rather than mixing --dry-run with --json",
+      "Identifies batches[].argv as arguments to npx and does not execute the installer",
+      "Reports target agent, project scope, source-qualified skills, and advisory-only status"
+    ]
+  },
+  {
+    "id": "external-opt-in-with-uncertainty",
+    "query": "Our monorepo has an unresolved framework; you may look up external skill candidates. Evaluate them but do not install anything. Distinguish trustworthiness from search rank.",
+    "expected_behavior": [
+      "Enables external discovery only because the request opts in, and notes possible network and cache effects",
+      "Checks provider, URLs, stale-cache status, and actual skill contents where accessible",
+      "Does not interpret external scores or structural plan validation as a trust verdict, and leaves unverified candidates unsure"
+    ]
+  },
+  {
+    "id": "near-miss-authoring-is-not-discovery",
+    "query": "Write a new SKILL.md that teaches agents our release checklist; no repository scan or discovery is necessary.",
+    "expected_behavior": [
+      "Does not invoke sift merely because the request mentions SKILL.md",
+      "Recognizes this as skill authoring rather than skill discovery"
+    ]
+  }
+]
