@@ -48,7 +48,7 @@ For a richer evidence-based assessment rather than a quick recommendation list:
 sift agent . --online=false --json
 ```
 
-The agent report uses `templateVersion: "1"` and contains `signals`, `suggestions`, `unresolved`, `warnings`, and optional `instructions`. Markdown output (`sift agent . --online=false`) includes instructions to classify source-qualified references into `install`, `reject`, and `unsure`. Treat those categories as advice rather than an installation authorization. Use `--bucket suggested` to narrow the candidate set, or `--no-instructions` if the calling workflow provides its own rules.
+The agent report uses `templateVersion: "1"` and contains `signals`, `suggestions`, `unresolved`, `warnings`, and optional `instructions`. Markdown output (`sift agent . --online=false`) provides a summary, detected technologies, locally suggested skills, other candidates, unresolved findings, and warnings. Repository-derived values are displayed as untrusted inline code. Review the stated evidence against workspace files instead of treating the report as authoritative. The instructions classify source-qualified references into `install`, `reject`, and `unsure`. Treat those categories as advice rather than an installation authorization. Use `--bucket suggested` to narrow the candidate set, or `--no-instructions` if the calling workflow provides its own rules.
 
 ## Guardrails
 

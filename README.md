@@ -103,6 +103,8 @@ sift agent . --online=false --json --bucket suggested
 sift agent . --online=false --max-signals 10 --context-lines 3 --no-instructions
 ```
 
+The Markdown brief groups a workspace summary, detected technologies with evidence, locally recommended skills, optional candidates, unresolved findings, and warnings. Untrusted repository values are isolated as inline code; external rankings are not confidence or trust scores. `--max-signals`, `--context-lines`, and `--bucket` still bound what is displayed. `--json` retains the versioned assessment envelope for programmatic consumers.
+
 The generated brief asks an agent to verify recommendations against workspace evidence and classify skill references as `install`, `reject`, or `unsure`. Its verdict is advisory, not permission to install.
 
 An installable agent skill for using this workflow is included at [`skills/sift/SKILL.md`](skills/sift/SKILL.md). For example, after reviewing the skill source, you can install it with the upstream CLI:
