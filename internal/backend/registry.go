@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"go-s/internal/model"
 	"sort"
 	"sync"
 	"time"
@@ -72,13 +71,11 @@ func NewRegistry(configs []Config) (*Registry, error) {
 }
 func (r *Registry) SetCache(cache *Cache, ttl time.Duration) { r.cache, r.cacheTTL = cache, ttl }
 func capabilitySupported(b Backend, caps Capability) bool {
+	if caps & ^CapSearch != 0 {
+		return false
+	}
 	if caps.Has(CapSearch) {
 		if _, ok := b.(Searcher); !ok {
-			return false
-		}
-	}
-	if caps.Has(CapValidate) {
-		if _, ok := b.(Validator); !ok {
 			return false
 		}
 	}
@@ -102,11 +99,6 @@ func (r *Registry) ByCap(c Capability) []Backend {
 		}
 		if c == CapSearch {
 			if _, ok := e.backend.(Searcher); !ok {
-				continue
-			}
-		}
-		if c == CapValidate {
-			if _, ok := e.backend.(Validator); !ok {
 				continue
 			}
 		}
@@ -255,30 +247,4 @@ func clampExternalScore(score float64) float64 {
 
 func (r *Registry) entryContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithCancel(ctx)
-}
-
-func (r *Registry) Validate(ctx context.Context, skills []model.SkillRef) map[string]Validation {
-	result := map[string]Validation{}
-	for _, skill := range skills {
-		result[skill.Key()] = Validation{Status: StatusUnknown}
-	}
-	for _, b := range r.ByCap(CapValidate) {
-		callCtx, cancel := r.entryContext(ctx)
-		v, err := b.(Validator).Validate(callCtx, skills)
-		cancel()
-		if err != nil {
-			continue
-		}
-		for _, skill := range skills {
-			key := skill.Key()
-			answer, ok := v[key]
-			if !ok || answer.Status == StatusUnknown {
-				continue
-			}
-			if result[key].Status == StatusUnknown {
-				result[key] = answer
-			}
-		}
-	}
-	return result
 }

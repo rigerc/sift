@@ -4,7 +4,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"slices"
 	"sort"
 	"strings"
@@ -13,18 +12,16 @@ import (
 	"go-s/internal/backend"
 	"go-s/internal/backend/register"
 	"go-s/internal/detect"
-	"go-s/internal/install"
 	"go-s/internal/model"
+	"go-s/internal/plan"
 	"go-s/internal/resolve"
 	"go-s/internal/rules"
 	"go-s/internal/walk"
 )
 
 type Service struct {
-	Runner install.Runner
-	Output io.Writer
 	// RegistryBuilder constructs the discovery registry; tests inject fakes.
-	// nil selects the built-in CLI adapter registry.
+	// nil selects the built-in discovery registry.
 	RegistryBuilder func() (*backend.Registry, error)
 }
 type ScanOptions struct {
@@ -92,8 +89,8 @@ const (
 // which unrelated package names diluted one another.
 //
 // Individual backend failures degrade to warnings; they never fail the scan.
-// Results land in the external bucket: never auto-selected, never installed
-// by --yes, and only installed after explicit user selection.
+// Results land in the external bucket and enter a plan only after explicit
+// user selection. Discovery is advisory, not a content-trust verdict.
 func (s Service) discover(ctx context.Context, unresolved []model.Observation, signals []model.MergedSignal) ([]model.Suggestion, []string) {
 	unresolved = prioritizeDiscoveryObservations(unresolved, discoveryObservationCap)
 	if len(unresolved) == 0 {
@@ -362,7 +359,7 @@ func suggestionScore(s model.Suggestion) float64 {
 
 // sortSuggestionsByScore orders the merged scan results globally by score,
 // highest first, with a canonical skill-key tiebreak so output stays
-// deterministic. Resolver install order is preserved separately in Order.
+// deterministic. Resolver planning order is preserved separately in Order.
 func sortSuggestionsByScore(suggestions []model.Suggestion) {
 	sort.SliceStable(suggestions, func(i, j int) bool {
 		a, b := suggestions[i], suggestions[j]
@@ -373,17 +370,21 @@ func sortSuggestionsByScore(suggestions []model.Suggestion) {
 	})
 }
 
-// PlanInstall restores scan-result order after UI selection. A nil selection picks suggested locals.
-func (s Service) PlanInstall(root string, result model.ScanResult, selected []model.SkillRef, opts install.Options) (install.Plan, error) {
+// BuildPlan restores scan-result order after selection. A nil selection picks
+// recommended local-catalog suggestions only; an empty selection picks none.
+func (s Service) BuildPlan(root string, result model.ScanResult, selected []model.SkillRef, opts plan.Options) (plan.Plan, error) {
 	chosen := map[string]bool{}
 	if selected == nil {
 		for _, suggestion := range result.Suggestions {
-			if suggestion.Bucket == "suggested" {
+			if suggestion.Bucket == "suggested" && suggestion.SourceBackend == "" {
 				chosen[suggestion.Skill.Key()] = true
 			}
 		}
 	} else {
 		for _, ref := range selected {
+			if err := plan.ValidateRef(ref, opts.AllowLocal); err != nil {
+				return plan.Plan{}, err
+			}
 			chosen[ref.Key()] = true
 		}
 	}
@@ -395,15 +396,7 @@ func (s Service) PlanInstall(root string, result model.ScanResult, selected []mo
 		}
 	}
 	if len(chosen) > 0 {
-		return install.Plan{}, fmt.Errorf("selection includes skills outside scan results")
+		return plan.Plan{}, fmt.Errorf("selection includes skills outside scan results")
 	}
-	return install.Build(root, refs, opts)
-}
-
-func (s Service) Install(ctx context.Context, plan install.Plan) error {
-	return install.Execute(ctx, plan, s.Runner, s.Output)
-}
-func (s Service) Status(root string) ([]install.Status, error) { return install.Inspect(root) }
-func (s Service) Update(ctx context.Context, root string) error {
-	return install.Update(ctx, root, s.Runner, s.Output)
+	return plan.Build(root, refs, opts)
 }

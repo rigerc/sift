@@ -10,9 +10,8 @@ import (
 	"time"
 )
 
-// Cache is a deterministic, capability-aware response cache. Callers may use
-// stale discovery entries after an online request fails; validation callers
-// must reject stale entries themselves via Fresh.
+// Cache is a deterministic discovery response cache. Callers may use stale
+// discovery entries after an online request fails.
 type (
 	Cache      struct{ dir string }
 	CacheEntry struct {

@@ -19,6 +19,18 @@ import (
 
 var defaultSkip = map[string]bool{"node_modules": true, ".git": true, "dist": true, "build": true, "target": true, "vendor": true, ".venv": true, "__pycache__": true, ".next": true, "coverage": true, ".idea": true, ".vscode": true, "bin": true, "obj": true, "Pods": true, ".terraform": true}
 
+// skipSet merges the built-in skip directories with caller overrides.
+func skipSet(opts Options) map[string]bool {
+	skip := make(map[string]bool, len(defaultSkip)+len(opts.SkipDirs))
+	for k := range defaultSkip {
+		skip[k] = true
+	}
+	for _, k := range opts.SkipDirs {
+		skip[k] = true
+	}
+	return skip
+}
+
 type Options struct {
 	MaxDepth int
 	SkipDirs []string
@@ -60,13 +72,7 @@ func Run(ctx context.Context, root string, opts Options) (Result, error) {
 	if opts.MaxDepth <= 0 {
 		opts.MaxDepth = 8
 	}
-	skip := make(map[string]bool, len(defaultSkip)+len(opts.SkipDirs))
-	for k := range defaultSkip {
-		skip[k] = true
-	}
-	for _, k := range opts.SkipDirs {
-		skip[k] = true
-	}
+	skip := skipSet(opts)
 	ignores, warnings := readIgnores(abs)
 	r := Result{Root: abs, ExtCounts: map[string]int{}, NameIndex: map[string][]string{}, DirIndex: map[string][]string{}, Warnings: warnings}
 	var candidates []string

@@ -54,9 +54,26 @@ func Usable(s string) bool {
 	return !strings.ContainsFunc(s, unicode.IsControl)
 }
 
+// Source normalizes provider whitespace without hiding hostile controls.
+// It does not establish that a source is trusted or available; plans perform
+// structural validation before emitting commands.
+func Source(raw string) string {
+	if strings.ContainsFunc(raw, unicode.IsControl) {
+		return ""
+	}
+	s := strings.TrimSpace(raw)
+	if !Usable(s) {
+		return ""
+	}
+	return s
+}
+
 // Name reduces a provider name or id to a slash-free, colon-free segment and
 // reports "" when nothing usable remains.
 func Name(name string) string {
+	if strings.ContainsFunc(name, unicode.IsControl) {
+		return ""
+	}
 	name = strings.TrimSpace(name)
 	if i := strings.LastIndexAny(name, "/:"); i >= 0 {
 		name = name[i+1:]
@@ -71,6 +88,9 @@ func Name(name string) string {
 // RepoFromURL extracts a GitHub owner/repo from a plain "owner/repo" value or
 // from a github.com URL. It returns "" when the value is not a repository.
 func RepoFromURL(raw string) string {
+	if strings.ContainsFunc(raw, unicode.IsControl) {
+		return ""
+	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""
@@ -79,7 +99,7 @@ func RepoFromURL(raw string) string {
 		return strings.ToLower(raw)
 	}
 	u, err := url.Parse(raw)
-	if err != nil || !strings.EqualFold(u.Hostname(), "github.com") {
+	if err != nil || !strings.EqualFold(u.Scheme, "https") || !strings.EqualFold(u.Hostname(), "github.com") || u.User != nil || strings.ContainsFunc(u.Path, unicode.IsControl) {
 		return ""
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
@@ -91,6 +111,9 @@ func RepoFromURL(raw string) string {
 
 // Slug lowercases a display string into a flag-safe token.
 func Slug(s string) string {
+	if strings.ContainsFunc(s, unicode.IsControl) {
+		return ""
+	}
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = slugPattern.ReplaceAllString(s, "-")
 	s = strings.Trim(s, ".-")

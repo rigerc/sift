@@ -1,15 +1,18 @@
 package prompt
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"go-s/internal/model"
 	"go-s/internal/textsafe"
-	"go-s/internal/ui/theme"
 	"math"
 	"os"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 )
 
@@ -168,7 +171,7 @@ type optionSpec struct {
 // optionSpecFor maps one suggestion to its option spec. Only suggested-bucket
 // rows start checked; external results need explicit opt-in.
 func optionSpecFor(s model.Suggestion, pad int) optionSpec {
-	return optionSpec{Label: OptionLabel(s, pad), Key: s.Skill.Key(), Checked: s.Bucket == "suggested"}
+	return optionSpec{Label: OptionLabel(s, pad), Key: s.Skill.Key(), Checked: s.Bucket == "suggested" && s.SourceBackend == ""}
 }
 
 // Options builds huh options for every selectable suggestion in resolver
@@ -200,7 +203,7 @@ func Options(result model.ScanResult) []huh.Option[string] {
 func Preselected(result model.ScanResult) []string {
 	out := []string{}
 	for _, s := range result.Suggestions {
-		if s.Bucket == "suggested" {
+		if s.Bucket == "suggested" && s.SourceBackend == "" {
 			out = append(out, s.Skill.Key())
 		}
 	}
@@ -218,7 +221,7 @@ func FilterSelected(result model.ScanResult, keys []string) []model.SkillRef {
 	seen := map[string]bool{}
 	for _, s := range result.Suggestions {
 		k := s.Skill.Key()
-		if want[k] && !seen[k] {
+		if s.Bucket != "hidden" && want[k] && !seen[k] {
 			out = append(out, s.Skill)
 			seen[k] = true
 		}
@@ -239,12 +242,10 @@ const (
 // chrome. Safe fallbacks apply when the terminal size cannot be determined.
 func formBounds() (width, availRows int) {
 	width, height := fallbackWidth, fallbackHeight
-	if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 0 && h > 0 {
+	if w, h, err := term.GetSize(os.Stderr.Fd()); err == nil && w > 0 && h > 0 {
 		width, height = w, h
 	}
-	width = min(width, maxFormWidth)
-	availRows = max(height-uiChromeRows, minAvailRows)
-	return width, availRows
+	return boundsForSize(width, height)
 }
 
 // selectorHeight sizes the MultiSelect field. Small result sets render
@@ -256,60 +257,162 @@ func selectorHeight(opts []huh.Option[string], availRows int) int {
 	for _, o := range opts {
 		lines += strings.Count(o.Key, "\n") + 1
 	}
-	want := lines + 3 // title, description, and cursor line
+	want := lines + 4 // title, two description lines, and cursor line
 	if want > availRows {
 		want = availRows
 	}
 	return want
 }
 
-// SelectSkills runs the guided scan flow: a summary note for orientation,
-// then a terminal-aware MultiSelect over the suggestions. The MultiSelect is
-// filterable ("/") and supports ctrl+a / ctrl+e select-all/none via huh.
-// Abort (esc/ctrl-c) cancels silently with (nil, nil); results without
-// selectable skills stop after the summary instead of an empty selector.
-func SelectSkills(result model.ScanResult, themeName string) ([]model.SkillRef, error) {
-	if !IsTTY() {
-		return nil, RequireTTY("skill selection")
+// boundsForSize is pure so small terminal layouts can be tested without a TTY.
+func boundsForSize(width, height int) (int, int) {
+	if width <= 0 {
+		width = fallbackWidth
 	}
-	width, availRows := formBounds()
-	summary := ScanSummary(result)
+	if height <= 0 {
+		height = fallbackHeight
+	}
+	return min(width, maxFormWidth), max(height-uiChromeRows, minAvailRows)
+}
+
+// clipLines bounds untrusted labels and summaries by terminal cell width.
+// Huh's option renderer does not wrap its multiline labels itself.
+func clipLines(s string, width int) string {
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], max(width, 1), "…")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func optionsForWidth(result model.ScanResult, width int) []huh.Option[string] {
 	opts := Options(result)
-	if len(opts) == 0 {
-		if err := runForm(themeName, width, huh.NewGroup(
-			huh.NewNote().Title("Scan complete").Description(summary+"\nNo installable skills found.").Next(true).NextLabel("Close"),
-		)); err != nil {
-			return nil, err
-		}
-		return nil, nil
+	for i := range opts {
+		opts[i].Key = clipLines(opts[i].Key, width-10)
 	}
-	var chosen []string
-	selector := huh.NewMultiSelect[string]().
-		Title("Select skills to install").
-		Description("space/x toggle · / filter · ctrl+a select all — recommended pre-selected, external needs opt-in.").
-		Options(opts...).
-		Height(selectorHeight(opts, availRows)).
-		Value(&chosen)
-	if err := runForm(themeName, width,
-		huh.NewGroup(huh.NewNote().Title("Scan complete").Description(summary).Next(true).NextLabel("Continue")),
-		huh.NewGroup(selector),
-	); err != nil {
+	return opts
+}
+
+// inlineView preserves the default Huh theme but suppresses styling in
+// NO_COLOR mode. Terminal-control sequences for rendering/restoration remain.
+func inlineView(noColor bool) func(tea.View) tea.View {
+	return func(v tea.View) tea.View {
+		v.AltScreen = false
+		if noColor {
+			v.Content = ansi.Strip(v.Content)
+			v.ForegroundColor = nil
+			v.BackgroundColor = nil
+		}
+		return v
+	}
+}
+
+func selectionForm(result model.ScanResult, width, availRows int, chosen *[]string) *huh.Form {
+	summary := clipLines(ScanSummary(result), width-4)
+	opts := optionsForWidth(result, width)
+	var groups []*huh.Group
+	if len(opts) == 0 {
+		groups = []*huh.Group{huh.NewGroup(
+			huh.NewNote().Title("Scan complete").
+				Description(summary + "\nNo selectable skills found.").Next(true).NextLabel("Close"),
+		)}
+	} else {
+		field := huh.NewMultiSelect[string]().
+			Title("Select skills for an installation plan").
+			Description("Recommended preselected; possible/external opt in.\n/ filter · enter plan · esc/ctrl+c cancel").
+			Filterable(true).
+			Options(opts...).
+			Height(selectorHeight(opts, availRows)).
+			Value(chosen)
+		groups = []*huh.Group{
+			huh.NewGroup(huh.NewNote().Title("Scan complete").Description(summary).Next(true).NextLabel("Continue")),
+			huh.NewGroup(&skillSelector{MultiSelect: field}),
+		}
+	}
+	keys := huh.NewDefaultKeyMap()
+	// Escape is whole-flow cancellation, including while editing a filter.
+	// Enter applies a filter; ctrl+r clears it without reserving Escape.
+	keys.Quit.SetKeys("esc", "ctrl+c")
+	keys.MultiSelect.SetFilter.SetKeys("enter")
+	keys.MultiSelect.SetFilter.SetHelp("enter", "apply filter")
+	keys.MultiSelect.ClearFilter.SetKeys("ctrl+r")
+	keys.MultiSelect.ClearFilter.SetHelp("ctrl+r", "clear filter")
+	return huh.NewForm(groups...).
+		WithAccessible(false).
+		WithWidth(width).
+		WithKeyMap(keys).
+		WithInput(os.Stdin).
+		WithOutput(os.Stderr).
+		WithViewHook(inlineView(os.Getenv("NO_COLOR") != ""))
+}
+
+// skillSelector guards Huh v2.0.3's empty-filter cursor handling. The upstream
+// field indexes its hovered row for toggles and can set a negative cursor on
+// down/end with zero matches. Keep filter typing live, but ignore navigation
+// when there is no row to navigate. All rendering and scrolling remain Huh's.
+type skillSelector struct {
+	*huh.MultiSelect[string]
+	filtering bool
+}
+
+func (s *skillSelector) Update(msg tea.Msg) (huh.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		name := key.String()
+		_, hasRow := s.Hovered()
+		if !hasRow {
+			switch name {
+			case "up", "down", "ctrl+p", "ctrl+n", "ctrl+u", "ctrl+d", "home", "end":
+				return s, nil
+			case "space", "x", "j", "k", "g", "G":
+				if !s.filtering {
+					return s, nil
+				}
+			}
+		}
+		if name == "/" && !s.filtering {
+			s.filtering = true
+		}
+		if name == "enter" || name == "ctrl+r" {
+			s.filtering = false
+		}
+	}
+	_, cmd := s.MultiSelect.Update(msg)
+	return s, cmd
+}
+
+// selectWithRunner makes cancellation atomic: Huh updates bound values while
+// toggling, but none are returned unless the entire form finishes successfully.
+func selectWithRunner(result model.ScanResult, width, rows int, run func(*huh.Form) error) ([]model.SkillRef, error) {
+	chosen := Preselected(result)
+	form := selectionForm(result, width, rows, &chosen)
+	if err := run(form); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return nil, nil
+		}
 		return nil, err
+	}
+	if form.State == huh.StateAborted {
+		return nil, nil
 	}
 	return FilterSelected(result, chosen), nil
 }
 
-// runForm executes one blocking huh form with the app theme and a
-// terminal-aware width. Abort (esc/ctrl-c) counts as cancel.
-func runForm(themeName string, width int, groups ...*huh.Group) error {
-	form := huh.NewForm(groups...).
-		WithTheme(theme.HuhTheme(themeName)).
-		WithWidth(width)
-	if err := form.Run(); err != nil {
-		if isAbort(err) {
-			return nil
+func SelectSkills(result model.ScanResult) ([]model.SkillRef, error) {
+	return SelectSkillsContext(context.Background(), result)
+}
+
+// SelectSkillsContext is the cancellable CLI entry point. Huh restores terminal
+// state before RunWithContext returns, including interruption and cancellation.
+func SelectSkillsContext(ctx context.Context, result model.ScanResult) ([]model.SkillRef, error) {
+	if !IsTTY() {
+		return nil, RequireTTY("skill selection")
+	}
+	width, rows := formBounds()
+	return selectWithRunner(result, width, rows, func(form *huh.Form) error {
+		err := form.RunWithContext(ctx)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		return err
-	}
-	return nil
+	})
 }

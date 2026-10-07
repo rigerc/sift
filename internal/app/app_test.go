@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"go-s/internal/backend"
-	"go-s/internal/install"
 	"go-s/internal/model"
+	planner "go-s/internal/plan"
 )
 
 func TestGoldenPipeline(t *testing.T) {
@@ -56,14 +56,14 @@ func TestPlanSelectionRestoresOrderAndExcludesExternalByDefault(t *testing.T) {
 	b := model.SkillRef{Source: "b/repo", Name: "two"}
 	ext := model.SkillRef{Source: "c/repo", Name: "external"}
 	r := model.ScanResult{ResolveResult: model.ResolveResult{Suggestions: []model.Suggestion{{Skill: a, Bucket: "suggested"}, {Skill: b, Bucket: "possible"}, {Skill: ext, Bucket: "external"}}}}
-	p, err := (Service{}).PlanInstall(t.TempDir(), r, nil, install.Options{})
+	p, err := (Service{}).BuildPlan(t.TempDir(), r, nil, planner.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(p.Batches) != 1 || p.Batches[0].Skills[0] != "one" {
 		t.Fatal("auto-selected nonsuggested")
 	}
-	p, err = (Service{}).PlanInstall(t.TempDir(), r, []model.SkillRef{b, a}, install.Options{})
+	p, err = (Service{}).BuildPlan(t.TempDir(), r, []model.SkillRef{b, a}, planner.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func (f fakeSearch) Search(_ context.Context, _ backend.Query) ([]backend.Extern
 }
 
 // fakeRegistry builds a discovery registry containing the fake backend,
-// standing in for the built-in CLI backends in tests.
+// standing in for the built-in discovery backends in tests.
 func fakeRegistry(fail bool) func() (*backend.Registry, error) {
 	return func() (*backend.Registry, error) {
 		backend.Register("fake-search", func(cfg backend.Config) (backend.Backend, error) { return fakeSearch{fail: fail}, nil })
@@ -131,8 +131,8 @@ func TestScanOnlineMergesExternalSuggestions(t *testing.T) {
 	if externals[0].Reasons[0] != "matched by fake" || externals[0].Evidence[0] != "Compose helper" {
 		t.Fatalf("unexpected reason/evidence: %+v", externals[0])
 	}
-	// Externals never auto-install: nil selection picks suggested only.
-	plan, err := svc.PlanInstall(root, result, nil, install.Options{})
+	// Externals never enter the default plan: nil picks recommended locals only.
+	plan, err := svc.BuildPlan(root, result, nil, planner.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,8 +141,8 @@ func TestScanOnlineMergesExternalSuggestions(t *testing.T) {
 			t.Fatal("external suggestion auto-selected")
 		}
 	}
-	// Explicit selection of an external installs through the npx skills path.
-	plan, err = svc.PlanInstall(root, result, []model.SkillRef{{Source: "acme/compose", Name: "docker-compose"}}, install.Options{})
+	// Explicit external selection produces advisory npx skills arguments.
+	plan, err = svc.BuildPlan(root, result, []model.SkillRef{{Source: "acme/compose", Name: "docker-compose"}}, planner.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -116,17 +116,17 @@ func (a *Adapter) mapResults(skills []skyllSkill) []backend.ExternalSuggestion {
 // source field, then a repo parsed from refs.github. It falls back to the
 // skill detail page so non-GitHub results remain visible.
 func sourceFor(skyllSkill skyllSkill) string {
-	source := strings.TrimSpace(skyllSkill.Source)
+	source := skyllSkill.Source
 	if repo := provider.RepoFromURL(source); repo != "" {
 		return repo
 	}
 	if repo := provider.RepoFromURL(skyllSkill.Refs.GitHub); repo != "" {
 		return repo
 	}
-	if ref := strings.TrimSpace(skyllSkill.Refs.SkillsSh); ref != "" {
+	if ref := provider.Source(skyllSkill.Refs.SkillsSh); ref != "" {
 		return ref
 	}
-	return strings.TrimSpace(skyllSkill.Refs.GitHub)
+	return provider.Source(skyllSkill.Refs.GitHub)
 }
 
 func nameFor(skyllSkill skyllSkill) string {

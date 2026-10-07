@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"go-s/internal/backend/provider"
 )
 
 // Skill is one entry from official.json / community.json `skills[]`.
@@ -23,7 +25,7 @@ func (s Skill) Repo() string {
 	if s.RepoPtr == nil {
 		return ""
 	}
-	return strings.TrimSpace(*s.RepoPtr)
+	return provider.Source(*s.RepoPtr)
 }
 
 // Installable reports whether the skill can be installed via `npx skills`,

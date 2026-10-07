@@ -4,8 +4,8 @@ import (
 	"io"
 	"strings"
 
-	"go-s/internal/install"
 	"go-s/internal/model"
+	"go-s/internal/plan"
 )
 
 // ScanSchemaVersion identifies the machine-readable scan envelope contract.
@@ -36,7 +36,7 @@ type (
 		Signals       []ScanSignal        `json:"signals"`
 		Suggestions   []ScanSuggestion    `json:"suggestions"`
 		Unresolved    []ScanObservation   `json:"unresolved"`
-		Install       *install.Plan       `json:"install,omitempty"`
+		Install       *plan.Plan          `json:"install,omitempty"`
 		Warnings      []ScanWarning       `json:"warnings"`
 		Observations  []model.Observation `json:"observations,omitempty"`
 	}
@@ -108,7 +108,7 @@ type (
 func BuildScan(result model.ScanResult, opts ScanOptions) ScanEnvelope {
 	agents := opts.Agents
 	if len(agents) == 0 {
-		agents = install.DetectAgents(result.Root)
+		agents = plan.DetectAgents(result.Root)
 	}
 	env := ScanEnvelope{
 		SchemaVersion: ScanSchemaVersion,
@@ -178,7 +178,7 @@ func scanSuggestion(suggestion model.Suggestion, agents []string, global, verbos
 		Source:      suggestion.Skill.Source,
 		Name:        suggestion.Skill.Name,
 		Bucket:      suggestion.Bucket,
-		SourceKind:  install.SourceKind(suggestion.Skill.Source),
+		SourceKind:  plan.SourceKind(suggestion.Skill.Source),
 		URL:         suggestion.URL,
 		Backend:     suggestion.SourceBackend,
 		Reason:      strings.Join(suggestion.Reasons, "; "),
@@ -192,10 +192,10 @@ func scanSuggestion(suggestion model.Suggestion, agents []string, global, verbos
 		out.Score = suggestion.Confidence
 		out.ScoreType = "confidence"
 	}
-	if err := install.ValidateRef(suggestion.Skill, true); err == nil {
+	p, err := plan.Build(".", []model.SkillRef{suggestion.Skill}, plan.Options{Agents: agents, Global: global, AllowLocal: suggestion.Bucket != "external" && suggestion.SourceBackend == ""})
+	if err == nil {
 		out.Installable = true
-		batch := install.Batch{Source: suggestion.Skill.Source, Skills: []string{suggestion.Skill.Name}}
-		out.InstallCommand = "npx " + shellJoin(install.AddArgs(batch, agents, global))
+		out.InstallCommand = "npx " + shellJoin(p.Batches[0].Argv)
 	}
 	if verbose {
 		out.Confidence = suggestion.Confidence
@@ -208,19 +208,19 @@ func scanSuggestion(suggestion model.Suggestion, agents []string, global, verbos
 	return out
 }
 
-// scanInstallPlan attaches a ready-to-run plan for the default "suggested"
-// selection (mirroring scan --yes). Errors degrade to a warning.
-func scanInstallPlan(result model.ScanResult, agents []string, opts ScanOptions, warnings []ScanWarning) (*install.Plan, []ScanWarning) {
+// scanInstallPlan attaches an advisory plan for the default recommended local
+// selection. Errors degrade to a warning; no commands are ever executed.
+func scanInstallPlan(result model.ScanResult, agents []string, opts ScanOptions, warnings []ScanWarning) (*plan.Plan, []ScanWarning) {
 	refs := make([]model.SkillRef, 0, len(result.Suggestions))
 	for _, suggestion := range result.Suggestions {
-		if suggestion.Bucket == "suggested" {
+		if suggestion.Bucket == "suggested" && suggestion.SourceBackend == "" {
 			refs = append(refs, suggestion.Skill)
 		}
 	}
 	if len(refs) == 0 {
 		return nil, warnings
 	}
-	plan, err := install.Build(result.Root, refs, install.Options{Agents: agents, Global: opts.Global, AllowLocal: true})
+	plan, err := plan.Build(result.Root, refs, plan.Options{Agents: agents, Global: opts.Global, AllowLocal: true})
 	if err != nil {
 		return nil, append(warnings, ScanWarning{Source: "install", Message: err.Error()})
 	}

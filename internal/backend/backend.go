@@ -14,29 +14,11 @@ type (
 	}
 )
 
-type Validator interface {
-	Validate(context.Context, []model.SkillRef) (map[string]Validation, error)
-}
-
 // VersionProber reports a backend health/version summary for `backends check`.
 type VersionProber interface {
 	Probe(context.Context) (string, error)
 }
 
-type Verdict int
-
-const (
-	StatusInvalid Verdict = iota
-	StatusValid
-	StatusUnknown
-)
-
-type Validation struct {
-	Status    Verdict
-	Revision  string
-	Downloads int
-	Detail    string
-}
 type Query struct {
 	Unresolved []model.Observation
 	Context    []model.MergedSignal
@@ -48,7 +30,7 @@ type ExternalSuggestion struct {
 	Title, SourceBackend string
 	// URL is the skill's canonical detail URL: a GitHub URL when the provider
 	// exposes one, otherwise the provider's own skill page. It is display and
-	// provenance only; installs use Skill.Source. Skill.Source may be a GitHub
+	// provenance only; generated plans use Skill.Source. Skill.Source may be a GitHub
 	// owner/repo or an https URL (a GitHub URL or a provider detail page).
 	URL           string
 	ExternalScore float64
@@ -60,7 +42,6 @@ type Capability uint8
 
 const (
 	CapSearch Capability = 1 << iota
-	CapValidate
 )
 
 // Config describes one backend instance. URL overrides the backend's remote

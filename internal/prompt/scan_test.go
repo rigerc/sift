@@ -207,9 +207,9 @@ func TestSelectorHeight(t *testing.T) {
 	one := Options(model.ScanResult{ResolveResult: model.ResolveResult{Suggestions: []model.Suggestion{
 		{Skill: model.SkillRef{Source: "o/r", Name: "one"}, Bucket: "suggested", Confidence: 0.9},
 	}}})
-	// One two-line option: 2 content rows + title + description + one spare.
-	if got := selectorHeight(one, 20); got != 5 {
-		t.Fatalf("tight sizing: got %d want 5", got)
+	// One two-line option + title + two description lines + one spare.
+	if got := selectorHeight(one, 20); got != 6 {
+		t.Fatalf("tight sizing: got %d want 6", got)
 	}
 	// Never exceeds the rows available after chrome; viewport scrolls instead.
 	if got := selectorHeight(one, 4); got != 4 {
@@ -232,7 +232,7 @@ func TestNonTTYSelectSkills(t *testing.T) {
 	if IsTTY() {
 		t.Skip("TTY attached; interactive forms cannot be asserted here")
 	}
-	if _, err := SelectSkills(fixtureResult(), "default"); !errors.Is(err, ErrNonTTY) {
+	if _, err := SelectSkills(fixtureResult()); !errors.Is(err, ErrNonTTY) {
 		t.Fatalf("SelectSkills: got %v", err)
 	}
 }

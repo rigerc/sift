@@ -7,9 +7,8 @@ import (
 )
 
 type fakeBackend struct {
-	name       string
-	results    []ExternalSuggestion
-	validation Validation
+	name    string
+	results []ExternalSuggestion
 }
 type identityBackend struct{ name string }
 
@@ -18,14 +17,6 @@ func (f identityBackend) Name() string { return f.name }
 func (f fakeBackend) Name() string { return f.name }
 func (f fakeBackend) Search(context.Context, Query) ([]ExternalSuggestion, error) {
 	return f.results, nil
-}
-
-func (f fakeBackend) Validate(_ context.Context, skills []model.SkillRef) (map[string]Validation, error) {
-	out := map[string]Validation{}
-	for _, s := range skills {
-		out[s.Key()] = f.validation
-	}
-	return out, nil
 }
 
 func TestRegistryPriorityAndCapabilityMerge(t *testing.T) {

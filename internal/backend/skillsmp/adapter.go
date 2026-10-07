@@ -154,7 +154,7 @@ func sourceFor(skill skill) string {
 	if repo := provider.RepoFromURL(skill.GithubURL); repo != "" {
 		return repo
 	}
-	return strings.TrimSpace(skill.SkillURL)
+	return provider.Source(skill.SkillURL)
 }
 
 func urlFor(skill skill) string {
