@@ -32,7 +32,7 @@ func LoadEffective(path string, explicitPath bool, overrides RuntimeOverrides) (
 		}
 		cfg = DefaultConfig()
 	}
-	if catalog, ok := os.LookupEnv("SKILLSCAN_CATALOG_URL"); ok {
+	if catalog, ok := os.LookupEnv("SIFT_CATALOG_URL"); ok {
 		cfg.Scan.Catalog = catalog
 	}
 	if overrides.Catalog != nil {

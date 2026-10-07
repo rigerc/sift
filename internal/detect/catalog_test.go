@@ -2,11 +2,12 @@ package detect
 
 import (
 	"context"
-	"go-s/internal/rules"
-	"go-s/internal/walk"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rigerc/sift/internal/rules"
+	"github.com/rigerc/sift/internal/walk"
 )
 
 func TestEmbeddedCatalogRepresentativeFrameworkCoverage(t *testing.T) {

@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"go-s/config"
-	"go-s/internal/backend"
-	"go-s/internal/backend/decimalai"
-	"go-s/internal/backend/officialskills"
-	"go-s/internal/backend/skillsmp"
-	"go-s/internal/backend/skyll"
+	"github.com/rigerc/sift/config"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/backend/decimalai"
+	"github.com/rigerc/sift/internal/backend/officialskills"
+	"github.com/rigerc/sift/internal/backend/skillsmp"
+	"github.com/rigerc/sift/internal/backend/skyll"
 )
 
 // searchCacheTTL bounds how long a discovery response is reused.

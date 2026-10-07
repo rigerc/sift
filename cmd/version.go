@@ -11,7 +11,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number",
 	Args:  cobra.NoArgs,
 	RunE: func(c *cobra.Command, _ []string) error {
-		_, err := fmt.Fprintf(c.OutOrStdout(), "skillscan v%s\n", c.Root().Version)
+		_, err := fmt.Fprintf(c.OutOrStdout(), "sift v%s\n", c.Root().Version)
 		return err
 	},
 }

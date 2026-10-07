@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/model"
 )
 
 func scanFixture(root string) model.ScanResult {
@@ -32,7 +32,7 @@ func scanFixture(root string) model.ScanResult {
 func TestScanEnvelopeCompact(t *testing.T) {
 	root := t.TempDir()
 	env := BuildScan(scanFixture(root), ScanOptions{})
-	if env.SchemaVersion != ScanSchemaVersion || env.Kind != ScanKind {
+	if env.SchemaVersion != "1" || env.Kind != "sift.scan" {
 		t.Fatalf("envelope identity = %+v", env)
 	}
 	if env.Summary.Suggested != 1 || env.Summary.External != 1 || env.Summary.Total != 2 || env.Summary.Signals != 1 || env.Summary.Unresolved != 1 || env.Summary.Warnings != 1 {

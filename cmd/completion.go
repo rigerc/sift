@@ -11,13 +11,13 @@ var completionCmd = &cobra.Command{
 	Long: `To load completions:
 
 Bash:
-  $ source <(skillscan completion bash)
+  $ source <(sift completion bash)
 
   # To load completions for each session, execute once:
   # Linux:
-  $ skillscan completion bash > /etc/bash_completion.d/skillscan
+  $ sift completion bash > /etc/bash_completion.d/sift
   # macOS:
-  $ skillscan completion bash > /usr/local/etc/bash_completion.d/skillscan
+  $ sift completion bash > /usr/local/etc/bash_completion.d/sift
 
 Zsh:
   # If shell completion is not already enabled in your environment,
@@ -25,21 +25,21 @@ Zsh:
   $ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
   # To load completions for each session, execute once:
-  $ skillscan completion zsh > "${fpath[1]}/_skillscan"
+  $ sift completion zsh > "${fpath[1]}/_sift"
 
   # You will need to start a new shell for this setup to take effect.
 
 fish:
-  $ skillscan completion fish | source
+  $ sift completion fish | source
 
   # To load completions for each session, execute once:
-  $ skillscan completion fish > ~/.config/fish/completions/skillscan.fish
+  $ sift completion fish > ~/.config/fish/completions/sift.fish
 
 PowerShell:
-  PS> skillscan completion powershell | Out-String | Invoke-Expression
+  PS> sift completion powershell | Out-String | Invoke-Expression
 
   # To load completions for every new session, run:
-  PS> skillscan completion powershell > skillscan.ps1
+  PS> sift completion powershell > sift.ps1
   # and source this file from your PowerShell profile.
 `,
 	DisableFlagsInUseLine: true,

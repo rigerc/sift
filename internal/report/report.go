@@ -4,11 +4,12 @@ package report
 import (
 	"encoding/json"
 	"fmt"
-	"go-s/internal/model"
-	"go-s/internal/textsafe"
 	"io"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/textsafe"
 )
 
 func JSON(w io.Writer, v any) error {

@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go-s/internal/model"
-	"go-s/internal/walk"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +12,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/walk"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -320,8 +321,10 @@ func dependencyStringName(raw, domain string) string {
 	return normalizeDependencyName(fields[0], domain)
 }
 
-var pythonNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*`)
-var pythonNormalizeRE = regexp.MustCompile(`[-_.]+`)
+var (
+	pythonNameRE      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*`)
+	pythonNormalizeRE = regexp.MustCompile(`[-_.]+`)
+)
 
 func pythonRequirementName(raw string) string {
 	m := pythonNameRE.FindString(strings.TrimSpace(raw))

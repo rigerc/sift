@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"go-s/internal/backend"
-	"go-s/internal/model"
-	planner "go-s/internal/plan"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
+	planner "github.com/rigerc/sift/internal/plan"
 )
 
 func TestGoldenPipeline(t *testing.T) {

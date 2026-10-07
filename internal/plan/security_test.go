@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/model"
 )
 
 func TestBuildRejectsRawHostileReferencesBeforeCanonicalization(t *testing.T) {
@@ -218,18 +218,28 @@ func snapshot(t *testing.T, root string) map[string]fileSnapshot {
 // Guard the planner's dependency boundary as well as its runtime behavior:
 // installation-state and process helpers must not sneak back through imports.
 func TestPlannerDependencyBoundary(t *testing.T) {
-	allowed := map[string]bool{"fmt": true, "net/url": true, "os": true, "path/filepath": true, "regexp": true, "slices": true, "strings": true, "unicode": true, "go-s/internal/model": true}
-	packages, err := parser.ParseDir(token.NewFileSet(), ".", func(info fs.FileInfo) bool { return !strings.HasSuffix(info.Name(), "_test.go") }, parser.ImportsOnly)
+	allowed := map[string]bool{"fmt": true, "net/url": true, "os": true, "path/filepath": true, "regexp": true, "slices": true, "strings": true, "unicode": true, "github.com/rigerc/sift/internal/model": true}
+	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ast.Inspect(packages["plan"], func(node ast.Node) bool {
-		if imported, ok := node.(*ast.ImportSpec); ok {
-			path, err := strconv.Unquote(imported.Path.Value)
-			if err != nil || !allowed[path] {
-				t.Errorf("planner import escaped structural boundary: %s", imported.Path.Value)
-			}
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
 		}
-		return true
-	})
+		file, err := parser.ParseFile(fset, entry.Name(), nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if imported, ok := node.(*ast.ImportSpec); ok {
+				path, err := strconv.Unquote(imported.Path.Value)
+				if err != nil || !allowed[path] {
+					t.Errorf("planner import escaped structural boundary: %s", imported.Path.Value)
+				}
+			}
+			return true
+		})
+	}
 }

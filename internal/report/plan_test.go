@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"go-s/internal/model"
-	"go-s/internal/plan"
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/plan"
 )
 
 // Contract: both human planning flows share safe, copyable commands and a
@@ -79,6 +79,7 @@ func TestShellJoin(t *testing.T) {
 		{"", "''"}, {"plain", "plain"}, {"a b", "'a b'"}, {"a'b", "'a'\\''b'"}, {"$(touch /tmp/x)", "'$(touch /tmp/x)'"}, {"semi;colon", "'semi;colon'"},
 	} {
 		t.Run(tc.arg, func(t *testing.T) {
+			t.Parallel()
 			if got := shellJoin([]string{tc.arg}); got != tc.want {
 				t.Fatalf("quote = %q, want %q", got, tc.want)
 			}

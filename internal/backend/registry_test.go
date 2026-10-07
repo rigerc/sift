@@ -2,8 +2,9 @@ package backend
 
 import (
 	"context"
-	"go-s/internal/model"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 type fakeBackend struct {
@@ -39,6 +40,7 @@ func TestRegistryRejectsUnsupportedConfiguredCapability(t *testing.T) {
 		t.Fatal("expected unsupported capability error")
 	}
 }
+
 func TestRegistryAppliesGlobalLimitAcrossBackends(t *testing.T) {
 	Register("test-limit", func(c Config) (Backend, error) {
 		results := []ExternalSuggestion{

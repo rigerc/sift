@@ -16,7 +16,7 @@ import (
 	huh "charm.land/huh/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/model"
 )
 
 func press(code rune) tea.KeyPressMsg { return tea.KeyPressMsg(tea.Key{Code: code}) }
@@ -222,8 +222,8 @@ func TestRealHuhCancellationRestoresInlineRenderer(t *testing.T) {
 		var chrome bytes.Buffer
 		var chosen []string
 		reader, writer := io.Pipe()
-		defer reader.Close()
-		defer writer.Close()
+		defer func() { _ = reader.Close() }()
+		defer func() { _ = writer.Close() }()
 		ready := make(chan struct{})
 		var once sync.Once
 		form := selectionForm(fixtureResult(), 60, 14, &chosen).

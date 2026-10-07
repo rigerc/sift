@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"go-s/internal/app"
-	"go-s/internal/model"
-	"go-s/internal/plan"
-	"go-s/internal/report"
+	"github.com/rigerc/sift/internal/app"
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/plan"
+	"github.com/rigerc/sift/internal/report"
 
 	"github.com/spf13/cobra"
 )
@@ -25,7 +25,7 @@ func testRoot(t *testing.T) *cobra.Command {
 	cfgFile, runtimeState = "", nil
 	t.Cleanup(func() { cfgFile, runtimeState = oldConfig, oldRuntime })
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("SKILLSCAN_CATALOG_URL", "")
+	t.Setenv("SIFT_CATALOG_URL", "")
 	c := newRootCommand()
 	c.AddCommand(newScanCommand(), newPlanCommand(), newAgentCommand(), newBackendsCommand())
 	version, completion := *versionCmd, *completionCmd
@@ -174,7 +174,7 @@ func TestScanConflictsAndDepthFailBeforeScan(t *testing.T) {
 		{"agent", "/missing", "--max-depth=0"},
 	} {
 		out, _, err := execute(t, args...)
-		if err == nil || out != "" || !(strings.Contains(err.Error(), "conflict") || strings.Contains(err.Error(), "max-depth")) {
+		if err == nil || out != "" || (!strings.Contains(err.Error(), "conflict") && !strings.Contains(err.Error(), "max-depth")) {
 			t.Fatalf("%v: %q %v", args, out, err)
 		}
 	}

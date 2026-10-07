@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go-s/internal/backend"
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
 )
 
 // newTestServer serves the Skyll search and health endpoints and records the

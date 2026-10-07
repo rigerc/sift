@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go-s/internal/model"
-	"go-s/internal/textsafe"
 	"math"
 	"os"
 	"strings"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/textsafe"
 
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"

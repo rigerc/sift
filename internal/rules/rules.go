@@ -7,13 +7,14 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"go-s/internal/model"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/rigerc/sift/internal/model"
 
 	"gopkg.in/yaml.v3"
 )

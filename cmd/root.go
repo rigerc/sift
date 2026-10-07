@@ -4,7 +4,7 @@ package cmd
 import (
 	"context"
 
-	"go-s/config"
+	"github.com/rigerc/sift/config"
 
 	"github.com/spf13/cobra"
 )
@@ -27,23 +27,23 @@ var rootCmd = newRootCommand()
 
 func newRootCommand() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "skillscan",
+		Use:   "sift",
 		Short: "Scan workspaces and suggest agent skills",
-		Long: `skillscan scans workspaces for technologies and suggests agent skills.
+		Long: `sift scans workspaces for technologies and suggests agent skills.
 It generates installation plans and copyable commands; nothing is installed.
 Run printed npx skills commands yourself after reviewing the skills.
 
 On a terminal, scan offers bounded inline skill selection. Piped scans print a
 table. Use --json for machine output or --dry-run for a recommended-local plan.`,
-		Example: `  skillscan scan .
-  skillscan scan --online=false
-  skillscan scan --json
-  skillscan scan --dry-run
-  skillscan plan owner/repo --skill my-skill --agent claude-code
-  skillscan plan owner/repo --skill my-skill --json
-  skillscan agent .
-  skillscan backends list
-  skillscan version`,
+		Example: `  sift scan .
+  sift scan --online=false
+  sift scan --json
+  sift scan --dry-run
+  sift plan owner/repo --skill my-skill --agent claude-code
+  sift plan owner/repo --skill my-skill --json
+  sift agent .
+  sift backends list
+  sift version`,
 		Version:       "1.0.0",
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -59,7 +59,7 @@ table. Use --json for machine output or --dry-run for a recommended-local plan.`
 		},
 	}
 	c.PersistentFlags().StringVar(&cfgFile, "config", "",
-		"Read configuration (default: $XDG_CONFIG_HOME/a-go-s/config.json)")
+		"Read configuration (default: $XDG_CONFIG_HOME/sift/config.json)")
 	return c
 }
 

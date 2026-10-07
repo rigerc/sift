@@ -3,10 +3,11 @@ package resolve
 
 import (
 	"fmt"
-	"go-s/internal/model"
-	"go-s/internal/rules"
 	"sort"
 	"strings"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/rules"
 )
 
 type suggestionState struct {

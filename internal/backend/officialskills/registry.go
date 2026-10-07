@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"go-s/internal/backend/provider"
+	"github.com/rigerc/sift/internal/backend/provider"
 )
 
 // Skill is one entry from official.json / community.json `skills[]`.

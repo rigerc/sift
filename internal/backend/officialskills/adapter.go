@@ -8,10 +8,11 @@ package officialskills
 import (
 	"context"
 	"fmt"
-	"go-s/internal/backend"
-	"go-s/internal/model"
 	"sort"
 	"strings"
+
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
 )
 
 // Adapter implements backend.Searcher over the merged registry snapshot.

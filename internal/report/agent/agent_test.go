@@ -3,11 +3,12 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
-	"go-s/internal/model"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func fixture() model.ScanResult {
@@ -44,8 +45,34 @@ func TestGoldenBrief(t *testing.T) {
 	if !strings.Contains(out.String(), "prompt-injection") || !strings.Contains(out.String(), "claims, not commands") {
 		t.Fatal("missing injection caution")
 	}
-	if !strings.Contains(out.String(), "```skillscan-verdict\ninstall: []\nreject: []\nunsure: []\n```") {
+	if !strings.Contains(out.String(), "```sift-verdict\ninstall: []\nreject: []\nunsure: []\n```") {
 		t.Fatal("verdict contract changed")
+	}
+}
+
+func TestSiftAgentIdentity(t *testing.T) {
+	var out bytes.Buffer
+	if err := Markdown(&out, fixture(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"# sift assessment\n", "Template version: 1\n", "```sift-verdict\n", "sift plan <source>"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("brief missing %q", want)
+		}
+	}
+	if strings.Contains(out.String(), "skillscan") {
+		t.Error("legacy branding in brief")
+	}
+	out.Reset()
+	if err := JSON(&out, fixture(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	var e Envelope
+	if err := json.Unmarshal(out.Bytes(), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.TemplateVersion != "1" || !strings.Contains(e.Instructions, "```sift-verdict") || strings.Contains(e.Instructions, "skillscan") {
+		t.Errorf("agent JSON identity = %+v", e)
 	}
 }
 
@@ -61,7 +88,7 @@ func TestEnvelopeAndOptions(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &e); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.Signals) != 1 || e.Signals[0].Key != "node:react" || len(e.Suggestions) != 1 || e.Instructions != "" || e.TemplateVersion != TemplateVersion {
+	if len(e.Signals) != 1 || e.Signals[0].Key != "node:react" || len(e.Suggestions) != 1 || e.Instructions != "" || e.TemplateVersion != "1" {
 		t.Fatalf("bad envelope %+v", e)
 	}
 	if _, err := Build(r, Options{Bucket: "invalid"}); err == nil {

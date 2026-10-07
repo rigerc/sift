@@ -10,9 +10,10 @@ import (
 )
 
 func TestGetJSONSendsAuthOnlyWhenConfigured(t *testing.T) {
-	var gotAuth string
+	var gotAuth, gotAgent string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
+		gotAgent = r.Header.Get("User-Agent")
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	defer srv.Close()
@@ -22,6 +23,9 @@ func TestGetJSONSendsAuthOnlyWhenConfigured(t *testing.T) {
 	if err := client.GetJSON(context.Background(), "/search", nil, &out); err != nil {
 		t.Fatal(err)
 	}
+	if gotAgent != "sift" {
+		t.Errorf("authenticated User-Agent = %q, want sift", gotAgent)
+	}
 	if gotAuth != "Bearer secret-token" {
 		t.Fatalf("auth header = %q", gotAuth)
 	}
@@ -29,6 +33,9 @@ func TestGetJSONSendsAuthOnlyWhenConfigured(t *testing.T) {
 	anonymous := Client{BaseURL: srv.URL}
 	if err := anonymous.GetJSON(context.Background(), "/search", nil, &out); err != nil {
 		t.Fatal(err)
+	}
+	if gotAgent != "sift" {
+		t.Errorf("anonymous User-Agent = %q, want sift", gotAgent)
 	}
 	if gotAuth != "" {
 		t.Fatalf("anonymous request sent auth header %q", gotAuth)

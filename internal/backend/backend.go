@@ -4,7 +4,7 @@ package backend
 import (
 	"context"
 
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/model"
 )
 
 type (

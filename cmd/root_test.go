@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-s/config"
+	"github.com/rigerc/sift/config"
 )
 
 func TestBareHelpVersionAndRemovedSurface(t *testing.T) {
@@ -17,14 +17,14 @@ func TestBareHelpVersionAndRemovedSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"skillscan scan", "skillscan plan", "nothing is installed", "Run printed npx skills commands yourself", "Available Commands:"} {
+	for _, want := range []string{"sift scan", "sift plan", "$XDG_CONFIG_HOME/sift/config.json", "nothing is installed", "Run printed npx skills commands yourself", "Available Commands:"} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("help missing %q: %s", want, out)
+			t.Errorf("help missing %q: %s", want, out)
 		}
 	}
 	out, _, err = execute(t, "version")
-	if err != nil || out != "skillscan v1.0.0\n" {
-		t.Fatalf("%q %v", out, err)
+	if err != nil || out != "sift v1.0.0\n" {
+		t.Errorf("%q %v", out, err)
 	}
 	for _, command := range []string{"tui", "install", "status", "update"} {
 		out, _, err = execute(t, command)
@@ -48,6 +48,38 @@ func TestBareHelpVersionAndRemovedSurface(t *testing.T) {
 	want := []string{"agent", "backends", "completion", "plan", "scan", "version"}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("command surface %v", names)
+	}
+}
+
+func TestSiftCompletionIdentity(t *testing.T) {
+	out, _, err := execute(t, "completion", "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "sift completion") || strings.Contains(out, "skillscan") {
+		t.Errorf("completion help identity: %s", out)
+	}
+	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
+		t.Run(shell, func(t *testing.T) {
+			out, _, err := execute(t, "completion", shell)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out, "sift") || strings.Contains(out, "skillscan") {
+				t.Fatalf("completion identity: %s", out)
+			}
+		})
+	}
+}
+
+func TestSiftCatalogWithoutRuntime(t *testing.T) {
+	c := testRoot(t)
+	t.Setenv("SIFT_CATALOG_URL", "file://environment.json")
+	var f scanFlags
+	f.bind(c)
+	got, err := f.options(c)
+	if err != nil || got.Catalog != "environment.json" {
+		t.Fatalf("environment without runtime: %+v %v", got, err)
 	}
 }
 
@@ -100,7 +132,7 @@ func TestRootConfigErrorsAndReadOnly(t *testing.T) {
 
 func TestScanOptionsPrecedenceAndDefaults(t *testing.T) {
 	c := testRoot(t)
-	t.Setenv("SKILLSCAN_CATALOG_URL", "file://environment.json")
+	t.Setenv("SIFT_CATALOG_URL", "file://environment.json")
 	cfg := config.DefaultConfig()
 	cfg.Scan = config.ScanConfig{Catalog: "file.json", MaxDepth: 16, Online: false}
 	runtimeState = &RuntimeState{Context: context.Background(), Config: &config.EffectiveConfig{Config: cfg}}

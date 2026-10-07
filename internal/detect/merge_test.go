@@ -1,9 +1,10 @@
 package detect
 
 import (
-	"go-s/internal/model"
 	"math"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func TestMergeConfidenceAndDeterminism(t *testing.T) {

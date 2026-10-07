@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"go-s/internal/backend"
+	"github.com/rigerc/sift/internal/backend"
 )
 
 const (

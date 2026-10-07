@@ -9,14 +9,14 @@ import (
 	"strings"
 	"sync"
 
-	"go-s/internal/backend"
-	"go-s/internal/backend/register"
-	"go-s/internal/detect"
-	"go-s/internal/model"
-	"go-s/internal/plan"
-	"go-s/internal/resolve"
-	"go-s/internal/rules"
-	"go-s/internal/walk"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/backend/register"
+	"github.com/rigerc/sift/internal/detect"
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/plan"
+	"github.com/rigerc/sift/internal/resolve"
+	"github.com/rigerc/sift/internal/rules"
+	"github.com/rigerc/sift/internal/walk"
 )
 
 type Service struct {

@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go-s/internal/backend"
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
 )
 
 func newTestServer(t *testing.T, status int, body string) (*httptest.Server, *http.Request) {
