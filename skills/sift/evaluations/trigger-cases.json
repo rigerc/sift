@@ -1,0 +1,22 @@
+[
+  {"query": "Which agent skills should I add to this Python service? It has pyproject.toml and FastAPI.", "should_trigger": true},
+  {"query": "Scan our frontend workspace and find skills appropriate for Codex. Don't install yet.", "should_trigger": true},
+  {"query": "Can you audit the skill recommendations from sift for this monorepo and point out weak evidence?", "should_trigger": true},
+  {"query": "Need a dry-run plan for Claude Code skills in this repo; nothing applied please.", "should_trigger": true},
+  {"query": "Our new Rust CLI has no skills yet. Suggest a shortlist supported by files in the repo.", "should_trigger": true},
+  {"query": "Why did the scanner rank a discovered skill so highly? It's from an external provider.", "should_trigger": true},
+  {"query": "Compare these suggested and possible skill matches and flag questionable ones.", "should_trigger": true},
+  {"query": "Plan the agent-skills setup for an OpenCode workspace under ./apps/core.", "should_trigger": true},
+  {"query": "Find skills for this GitHub Copilot project from its language and framework evidence.", "should_trigger": true},
+  {"query": "Recommend skills for our repo but do not contact online skill registries.", "should_trigger": true},
+  {"query": "Write a SKILL.md that teaches our release process to assistants.", "should_trigger": false},
+  {"query": "Fix this broken Go unit test in cmd/features_test.go.", "should_trigger": false},
+  {"query": "Install this approved agent skill in my home directory right now.", "should_trigger": false},
+  {"query": "Create a new GitHub Actions CI workflow that validates skill files.", "should_trigger": false},
+  {"query": "Review our team's AGENTS.md instructions for style and clarity.", "should_trigger": false},
+  {"query": "How do I configure an MCP server for my coding agent?", "should_trigger": false},
+  {"query": "Compare agent coding benchmarks for Codex and Claude Code.", "should_trigger": false},
+  {"query": "Search GitHub for PRs related to the skills CLI repository.", "should_trigger": false},
+  {"query": "Generate a README for our internal tool named sift.", "should_trigger": false},
+  {"query": "Improve the terminal UI of a CLI named skillscan, without finding agent skills for a workspace.", "should_trigger": false}
+]
