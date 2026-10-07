@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -58,59 +57,43 @@ func TestStructuralValidation(t *testing.T) {
 	if err := ValidateRef(model.SkillRef{Source: "./local", Name: "good"}, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range []model.SkillRef{{Source: "askill", Name: "docker-compose"}, {Source: "skillfish", Name: "k8s-debug"}, {Source: "smithery", Name: "@acme/mcp-fetch"}} {
+	for _, r := range []model.SkillRef{{Source: "acme/skills", Name: "docker-compose"}, {Source: "https://github.com/acme/skills", Name: "plain"}} {
 		if err := ValidateRef(r, false); err != nil {
-			t.Errorf("rejected backend ref %+v: %v", r, err)
+			t.Errorf("rejected GitHub ref %+v: %v", r, err)
 		}
 	}
 }
 
-func TestBuildBackendBatchesAndArgv(t *testing.T) {
+func TestBuildGroupsBatchesAndArgv(t *testing.T) {
 	refs := []model.SkillRef{
 		{Source: "a/repo", Name: "one"},
-		{Source: "askill", Name: "docker-compose"},
-		{Source: "askill", Name: "second-skill"},
-		{Source: "smithery", Name: "@acme/mcp-fetch"},
-		{Source: "skillfish", Name: "k8s-debug"},
+		{Source: "b/repo", Name: "docker-compose"},
+		{Source: "b/repo", Name: "second-skill"},
+		{Source: "c/repo", Name: "plain"},
 	}
 	p, err := Build(t.TempDir(), refs, Options{Agents: []string{"claude-code", "opencode"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Batches) != 5 {
-		t.Fatalf("backend skills must not share batches: %+v", p.Batches)
+	if len(p.Batches) != 3 {
+		t.Fatalf("same-source skills must share a batch: %+v", p.Batches)
 	}
-	if p.Batches[0].Backend != "" || p.Batches[0].Skills[0] != "one" {
+	if p.Batches[0].Source != "a/repo" || p.Batches[0].Skills[0] != "one" {
 		t.Fatalf("default batch broken: %+v", p.Batches[0])
 	}
-	tests := []struct {
-		i       int
-		backend string
-		argv    []string
-	}{
-		{i: 1, backend: BackendAskill, argv: []string{"add", "docker-compose", "-a", "claude-code", "-a", "opencode", "-y"}},
-		{i: 2, backend: BackendAskill, argv: []string{"add", "second-skill", "-a", "claude-code", "-a", "opencode", "-y"}},
-		{i: 3, backend: BackendSmithery, argv: []string{"skill", "add", "@acme/mcp-fetch", "--agent", "claude-code", "--agent", "opencode"}},
-		{i: 4, backend: BackendSkillfish, argv: []string{"add", "k8s-debug", "--agent", "claude-code", "--agent", "opencode", "--project", "-y"}},
+	if p.Batches[1].Source != "b/repo" || len(p.Batches[1].Skills) != 2 {
+		t.Fatalf("grouped batch broken: %+v", p.Batches[1])
 	}
-	for _, tt := range tests {
-		b := p.Batches[tt.i]
-		if b.Backend != tt.backend {
-			t.Errorf("batch %d backend=%q want %q", tt.i, b.Backend, tt.backend)
-		}
-		if !reflect.DeepEqual(b.Argv, tt.argv) {
-			t.Errorf("batch %d argv=%q want %q", tt.i, b.Argv, tt.argv)
-		}
+	want := []string{"--yes", Package, "add", "b/repo", "--skill", "docker-compose", "second-skill", "--agent", "claude-code", "opencode", "--yes"}
+	if !reflect.DeepEqual(p.Batches[1].Argv, want) {
+		t.Fatalf("argv: %q", p.Batches[1].Argv)
 	}
-	global, err := Build(t.TempDir(), refs[:2], Options{Agents: []string{"claude-code"}, Global: true})
+	global, err := Build(t.TempDir(), refs[:1], Options{Agents: []string{"claude-code"}, Global: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"add", "docker-compose", "-a", "claude-code", "-g", "-y"}; !reflect.DeepEqual(global.Batches[1].Argv, want) {
-		t.Fatalf("global askill argv=%q", global.Batches[1].Argv)
-	}
 	if want := []string{"--yes", Package, "add", "a/repo", "--skill", "one", "--agent", "claude-code", "--yes", "--global"}; !reflect.DeepEqual(global.Batches[0].Argv, want) {
-		t.Fatalf("global default argv=%q", global.Batches[0].Argv)
+		t.Fatalf("global argv=%q", global.Batches[0].Argv)
 	}
 }
 
@@ -127,21 +110,11 @@ func (f *fakeRunner) Run(_ context.Context, root, name string, args []string, _ 
 	if f.fail {
 		return io.ErrUnexpectedEOF
 	}
-	if name == "npx" {
-		for _, name := range args[5:] {
-			if name == "--agent" {
-				break
-			}
-			f.makeSkillDir(root, name)
+	for _, name := range args[5:] {
+		if name == "--agent" {
+			break
 		}
-		return nil
-	}
-	// Backend CLIs: "add <skill> ..." or "skill add <skill> ...".
-	if len(args) >= 2 && args[0] == "add" {
-		f.makeSkillDir(root, args[1])
-	}
-	if len(args) >= 3 && args[0] == "skill" && args[1] == "add" {
-		f.makeSkillDir(root, args[2])
+		f.makeSkillDir(root, name)
 	}
 	return nil
 }
@@ -190,12 +163,11 @@ func TestExecutionAndState(t *testing.T) {
 	}
 }
 
-func TestExecutionDispatchesBackendCLI(t *testing.T) {
+func TestExecutionUsesNpxForEveryBatch(t *testing.T) {
 	root := t.TempDir()
 	p, err := Build(root, []model.SkillRef{
 		{Source: "a/repo", Name: "one"},
-		{Source: "askill", Name: "docker-compose"},
-		{Source: "smithery", Name: "@acme/mcp-fetch"},
+		{Source: "b/repo", Name: "docker-compose"},
 	}, Options{Agents: []string{"claude-code"}})
 	if err != nil {
 		t.Fatal(err)
@@ -207,14 +179,12 @@ func TestExecutionDispatchesBackendCLI(t *testing.T) {
 	if err := Execute(context.Background(), p, r, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if r.calls != 3 {
+	if r.calls != 2 {
 		t.Fatalf("calls %d", r.calls)
 	}
-	// Execution order: default batch first, then backend batches in plan order.
-	if r.name != "smithery" {
+	if r.name != "npx" {
 		t.Fatalf("last invocation binary %q", r.name)
 	}
-	// State tracks backend sources and hashed destinations.
 	statuses, err := Inspect(root)
 	if err != nil {
 		t.Fatal(err)
@@ -223,28 +193,24 @@ func TestExecutionDispatchesBackendCLI(t *testing.T) {
 	for _, s := range statuses {
 		bySource[s.Source] = s
 	}
-	if s, ok := bySource["askill"]; !ok || s.Status != "installed" {
-		t.Fatalf("askill entry: %+v (have %v)", s, statuses)
+	if s, ok := bySource["a/repo"]; !ok || s.Status != "installed" {
+		t.Fatalf("a/repo entry: %+v (have %v)", s, statuses)
 	}
-	if s, ok := bySource["smithery"]; !ok || s.Name != "@acme/mcp-fetch" {
-		t.Fatalf("smithery entry: %+v", s)
+	if s, ok := bySource["b/repo"]; !ok || s.Name != "docker-compose" {
+		t.Fatalf("b/repo entry: %+v", s)
 	}
 }
 
-func TestPreflightBackendsRequiresCLIOnPath(t *testing.T) {
+func TestPreflightRequiresNpxOnPath(t *testing.T) {
 	dir := t.TempDir()
-	p, err := Build(t.TempDir(), []model.SkillRef{{Source: "askill", Name: "x"}}, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Setenv("PATH", dir)
-	if err := PreflightBackends(p); err == nil {
-		t.Fatal("missing askill binary accepted")
+	if err := Preflight(context.Background()); err == nil {
+		t.Fatal("missing npx accepted")
 	}
-	if err := os.WriteFile(filepath.Join(dir, "askill"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "npx"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := PreflightBackends(p); err != nil {
+	if err := Preflight(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -265,25 +231,5 @@ func TestHashStableAndPathSensitive(t *testing.T) {
 	b, _ = HashDirectory(dir)
 	if a == b {
 		t.Fatal("hash omitted relative paths")
-	}
-}
-
-func TestPreflightShim(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("PATH", dir)
-	for _, version := range []string{"v22.19.0", "v22.20.0", "v24.0.0"} {
-		for name, body := range map[string]string{"node": "#!/bin/sh\nprintf '" + version + "\\n'\n", "npx": "#!/bin/sh\nexit 0\n"} {
-			if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
-				t.Fatal(err)
-			}
-		}
-		err := Preflight(context.Background())
-		if strings.Contains(version, "19") {
-			if err == nil {
-				t.Fatal("old node accepted")
-			}
-		} else if err != nil {
-			t.Fatal(err)
-		}
 	}
 }

@@ -430,10 +430,15 @@ Adapter packages:
 ```
 internal/backend/
   backend.go       identity + capability interfaces, model, Caps vocabulary, Registry
-  skillssh/        skills.sh discovery/validation adapter  type: skills.sh
-  githubtrees/     GitHub source/tree validation adapter   type: github-trees
-  semantic/        embedding-search adapter                type: semantic
-  catalog/         local/file catalog provider             type: catalog
+  officialskills/  officialskills registry adapter          type: official-skills
+  skyll/           Skyll search adapter                     type: skyll
+  skillsmp/        SkillsMP search adapter                  type: skillsmp
+  decimalai/       DecimalAI registry search adapter        type: decimalai
+  httpx/           bounded JSON-over-HTTP client shared by HTTP adapters
+  skillssh/        skills.sh discovery/validation adapter   type: skills.sh
+  githubtrees/     GitHub source/tree validation adapter    type: github-trees
+  semantic/        embedding-search adapter                 type: semantic
+  catalog/         local/file catalog provider              type: catalog
 ```
 
 ### Config schema (`backends.yaml`)
@@ -487,6 +492,7 @@ One cache implementation is used for all cacheable backend capabilities, but the
 - Under `--online`, validation backend failure contributes no authoritative verdict; unresolved status becomes `unknown` and follows install policy. With `--online` off, remote validation is simply skipped.
 - `--online` gates **skillscan backend network calls**, not the network behavior of a later `npx skills add` child process.
 - Backend-returned SkillRefs are structurally validated exactly like local rule SkillRefs before display/install. Network backends may not return local filesystem sources; local sources are accepted only from explicit user/local catalog configuration.
+- Network discovery prefers an installable GitHub `owner/repo` source and falls back to the provider's own skill detail URL when no repository is exposed. Detail URLs remain display/provenance candidates and may be rejected by the upstream install CLI; GitHub sources are always preferred so installs succeed whenever a provider exposes a repo.
 - Auth values are `env:` references only, never logged, and URL query parameters are redacted from errors.
 - HTTP adapters share bounded clients, response-size limits, and strict decoding.
 
@@ -531,6 +537,17 @@ Retain global `--config <config.json>`, `--debug`, `--log-level`, and `--skip-we
 `update` delegates to the pinned upstream `skills update` command; skillscan does not reimplement upstream update resolution. After a successful update, skillscan refreshes content hashes/provenance for entries it tracks when their installed paths can be resolved.
 
 `agent` is a fourth renderer over the same scan/resolve pipeline, alongside the interactive TUI, the plain table, and `--json`; see **Feature: `skillscan agent`** below.
+
+### Machine-readable scan JSON (`scan --json`)
+
+`scan --json` emits a versioned envelope (`internal/report.BuildScan`), not the raw `model.ScanResult`. Consumers branch on `schemaVersion` (currently `1`) and `kind` (`skillscan.scan`).
+
+- **Compact by default:** `observations` is omitted, signals keep only `key`/`domain`/`confidence`, and each suggestion exposes one normalized `score` with an explicit `scoreType` (`confidence` for local, `external` for backend results). `--verbose` restores full signals and observations plus per-suggestion `reasons`/`evidence`/`technologies`/`members`.
+- **No null collections:** `members`, `signals`, `suggestions`, `unresolved`, and `warnings` always serialize as arrays (`[]`).
+- **Actionable installs:** each suggestion carries `sourceKind` (`github`/`url`/`local`/`unknown`), `installable`, and a copy-pasteable `installCommand`. A top-level `install` plan for the default **suggested**-bucket selection is attached when it builds; a build failure degrades to a structured warning instead of failing the scan.
+- **Structured warnings:** `{"source": "...", "message": "..."}`, with backend fan-out failures tagged `discovery`.
+- **Summary:** bucket/collection counts so an agent can branch before scanning arrays.
+- `--dry-run` still emits the raw `install.Plan`.
 
 ## Feature: `skillscan agent` — machine-instruction output for AI agents
 

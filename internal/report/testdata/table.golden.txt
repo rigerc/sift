@@ -1,3 +1,3 @@
-BUCKET     SOURCE      SKILL  CONFIDENCE / EXTERNAL SCORE  REASON               EVIDENCE
-suggested  owner/repo  one    0.95                         declared dependency  go.mod
-external   other/repo  one    external 42.00               backend match        
+BUCKET     SOURCE      SKILL  CONFIDENCE / EXTERNAL SCORE  URL                                                 REASON               EVIDENCE
+suggested  owner/repo  one    0.95                                                                             declared dependency  go.mod
+external   other/repo  one    external 42.00               https://github.com/other/repo/tree/main/skills/one  backend match        

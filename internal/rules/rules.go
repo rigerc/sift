@@ -10,6 +10,7 @@ import (
 	"go-s/internal/model"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -209,8 +210,8 @@ func validate(raw fileCatalog) (Catalog, error) {
 
 func validateDetect(d model.DetectConfig) error {
 	for _, pattern := range d.PackagePatterns {
-		if _, err := regexp.Compile(pattern); err != nil {
-			return fmt.Errorf("invalid package regex %q: %w", pattern, err)
+		if _, err := filepath.Match(pattern, "probe"); err != nil {
+			return fmt.Errorf("invalid package glob %q: %w", pattern, err)
 		}
 	}
 	for _, file := range d.ConfigFiles {
@@ -223,15 +224,29 @@ func validateDetect(d model.DetectConfig) error {
 		if file.Mode != model.MatchExact && file.Mode != model.MatchGlob {
 			return fmt.Errorf("invalid file mode %q", file.Mode)
 		}
+		if file.Mode == model.MatchGlob {
+			if _, err := filepath.Match(file.Pattern, "probe"); err != nil {
+				return fmt.Errorf("invalid file glob %q: %w", file.Pattern, err)
+			}
+		}
 	}
 	for _, ext := range d.FileExtensions {
 		if ext.Extension == "" || ext.MinCount < 1 {
 			return fmt.Errorf("invalid extension rule %q", ext.Extension)
 		}
 	}
+	for _, dir := range d.Directories {
+		clean := filepath.ToSlash(filepath.Clean(dir))
+		if strings.TrimSpace(dir) == "" || filepath.IsAbs(dir) || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+			return fmt.Errorf("invalid directory rule %q", dir)
+		}
+	}
 	for _, content := range d.Content {
 		if content.FilePattern == "" {
 			return errors.New("empty content file pattern")
+		}
+		if _, err := filepath.Match(content.FilePattern, "probe"); err != nil {
+			return fmt.Errorf("invalid content file glob %q: %w", content.FilePattern, err)
 		}
 		for _, pattern := range content.Patterns {
 			if _, err := regexp.Compile(pattern); err != nil {

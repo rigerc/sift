@@ -2,46 +2,68 @@
 package register
 
 import (
-	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"go-s/config"
 	"go-s/internal/backend"
-	"go-s/internal/backend/askill"
-	"go-s/internal/backend/catalog"
-	"go-s/internal/backend/githubtrees"
-	"go-s/internal/backend/semantic"
-	"go-s/internal/backend/skillfish"
-	"go-s/internal/backend/skillssh"
-	"go-s/internal/backend/smithery"
+	"go-s/internal/backend/decimalai"
+	"go-s/internal/backend/officialskills"
+	"go-s/internal/backend/skillsmp"
+	"go-s/internal/backend/skyll"
 )
 
+// searchCacheTTL bounds how long a discovery response is reused.
+const searchCacheTTL = 24 * time.Hour
+
 func init() {
-	backend.Register("skills.sh", skillssh.New)
-	backend.Register("github-trees", githubtrees.New)
-	backend.Register("semantic", semantic.New)
-	backend.Register("catalog", catalog.New)
-	backend.Register("askill", askill.New)
-	backend.Register("skillfish", skillfish.New)
-	backend.Register("smithery", smithery.New)
+	backend.Register("official-skills", officialskills.New)
+	backend.Register("skyll", skyll.New)
+	backend.Register("skillsmp", skillsmp.New)
+	backend.Register("decimalai", decimalai.New)
 }
 
-// New constructs a registry with all built-in adapter types registered.
-func New(configs []backend.Config, strategy backend.Strategy) (*backend.Registry, error) {
-	if len(configs) == 0 {
-		return nil, fmt.Errorf("no backends configured")
+// New constructs the registry with every built-in backend and wires the
+// shared discovery search cache. There is no user configuration.
+func New() (*backend.Registry, error) {
+	registry, err := backend.NewRegistry(Builtins())
+	if err != nil {
+		return nil, err
 	}
-	return backend.NewRegistry(configs, strategy)
+	if root := config.DefaultCacheDir(); root != "" {
+		registry.SetCache(backend.NewCache(filepath.Join(root, "search")), searchCacheTTL)
+	}
+	return registry, nil
 }
 
-// CLIInfo describes a built-in local CLI backend for setup tooling.
-type CLIInfo struct {
-	Type, Binary, PinnedVersion string
-}
-
-// CLIBackends lists the built-in process-CLI backends. These run local
-// binaries, so availability can be verified without configuration.
-func CLIBackends() []CLIInfo {
-	return []CLIInfo{
-		{Type: "askill", Binary: askill.Binary, PinnedVersion: askill.PinnedVersion},
-		{Type: "skillfish", Binary: skillfish.Binary, PinnedVersion: skillfish.PinnedVersion},
-		{Type: "smithery", Binary: smithery.Binary, PinnedVersion: smithery.PinnedVersion},
+// Builtins returns the configuration of the shipped discovery backends. The
+// HTTP adapters are seeded with their optional API tokens from the
+// environment; an unset variable means an anonymous request.
+func Builtins() []backend.Config {
+	return []backend.Config{
+		{
+			Name:         "official-skills",
+			Type:         "official-skills",
+			Capabilities: backend.CapSearch,
+			CacheDir:     config.DefaultCacheDir(),
+		},
+		{
+			Name:         "skyll",
+			Type:         "skyll",
+			Capabilities: backend.CapSearch,
+		},
+		{
+			Name:         "skillsmp",
+			Type:         "skillsmp",
+			Capabilities: backend.CapSearch,
+			Auth:         os.Getenv("SKILLSMP_API_KEY"),
+		},
+		{
+			Name:         "decimalai",
+			Type:         "decimalai",
+			Capabilities: backend.CapSearch,
+			Auth:         os.Getenv("DECIMAL_API_KEY"),
+		},
 	}
 }

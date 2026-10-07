@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"go-s/internal/app"
-	"go-s/internal/install"
-	"go-s/internal/model"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"go-s/internal/app"
+	"go-s/internal/install"
+	"go-s/internal/report"
 )
 
 func TestHeadlessScanMatchesService(t *testing.T) {
@@ -25,7 +25,7 @@ func TestHeadlessScanMatchesService(t *testing.T) {
 	if err := c.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	var got model.ScanResult
+	var got report.ScanEnvelope
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("machine output contaminated: %s: %v", out.String(), err)
 	}
@@ -34,7 +34,7 @@ func TestHeadlessScanMatchesService(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, _ := json.Marshal(got)
-	b, _ := json.Marshal(want)
+	b, _ := json.Marshal(report.BuildScan(want, report.ScanOptions{}))
 	if !bytes.Equal(a, b) {
 		t.Fatal("CLI and service disagree")
 	}
@@ -49,8 +49,11 @@ func TestInstallDryRunNoNode(t *testing.T) {
 	if err := c.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !json.Valid(out.Bytes()) || !bytes.Contains(out.Bytes(), []byte("skills@1.5.25")) {
+	if !json.Valid(out.Bytes()) || !bytes.Contains(out.Bytes(), []byte("\"skills\"")) {
 		t.Fatal(out.String())
+	}
+	if bytes.Contains(out.Bytes(), []byte("skills@")) {
+		t.Fatalf("skills CLI must be unpinned: %s", out.String())
 	}
 }
 
@@ -70,39 +73,25 @@ func TestAgentAlwaysHeadless(t *testing.T) {
 
 func TestValidatePlanOfflineRequiresNothing(t *testing.T) {
 	p := install.Plan{Batches: []install.Batch{{Source: "owner/repo", Skills: []string{"x"}}}}
-	if err := validatePlan(context.Background(), p, app.ScanOptions{}, false); err != nil {
+	if err := validatePlan(context.Background(), p, false, false); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestValidatePlanOnlineUnknownRequiresFlag(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "backends.yaml")
-	yaml := "strategy: fanout\nbackends:\n  - name: gh\n    type: github-trees\n    url: http://127.0.0.1:1\n    capabilities: [validate]\n    timeout: 1s\n"
-	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
-		t.Fatal(err)
-	}
+func TestValidatePlanOnlineDegradesWithoutValidators(t *testing.T) {
+	// The built-in registry ships search-only backends, so online validation
+	// is a no-op instead of a hard failure.
 	p := install.Plan{Batches: []install.Batch{{Source: "owner/repo", Skills: []string{"x"}}}}
-	opts := app.ScanOptions{Online: true, BackendsPath: path}
-	if err := validatePlan(context.Background(), p, opts, false); err == nil || !strings.Contains(err.Error(), "--allow-unvalidated") {
-		t.Fatalf("expected unknown gate, got %v", err)
-	}
-	if err := validatePlan(context.Background(), p, opts, true); err != nil {
-		t.Fatal(err)
+	if err := validatePlan(context.Background(), p, true, false); err != nil {
+		t.Fatalf("built-in registry must degrade gracefully: %v", err)
 	}
 }
 
-func TestBackendsList(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "backends.yaml")
-	yaml := "strategy: fanout\nbackends:\n  - name: ss\n    type: skills.sh\n    capabilities: [search, validate]\n"
-	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
-		t.Fatal(err)
-	}
+func TestBackendsListShipsBuiltins(t *testing.T) {
 	c := newBackendsCommand()
 	var out bytes.Buffer
 	c.SetOut(&out)
-	c.SetArgs([]string{"list", "--backends", path, "--json"})
+	c.SetArgs([]string{"list", "--json"})
 	if err := c.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +99,16 @@ func TestBackendsList(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0]["Name"] != "ss" || rows[0]["Type"] != "skills.sh" || rows[0]["Capabilities"] != "search,validate" {
-		t.Fatalf("unexpected rows: %s", out.String())
+	if len(rows) != 4 {
+		t.Fatalf("expected 4 built-in backends: %s", out.String())
+	}
+	want := []string{"official-skills", "skyll", "skillsmp", "decimalai"}
+	for i, name := range want {
+		if rows[i]["Name"] != name || rows[i]["Type"] != name {
+			t.Fatalf("unexpected backend at %d, want %q: %s", i, name, out.String())
+		}
+		if rows[i]["Capabilities"] != "search" {
+			t.Fatalf("backend %s is search-only: %s", name, out.String())
+		}
 	}
 }

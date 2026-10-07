@@ -1,32 +1,721 @@
 detection_rules:
-  - technology_id: node:react
-    detect:
-      packages: [react, react-dom]
-  - technology_id: node:nextjs
-    detect:
-      packages: [next]
-      config_files:
-        - pattern: next.config.*
-          mode: glob
-  - technology_id: go:module
-    detect:
-      manifests: [go.mod]
-  - technology_id: python:project
-    detect:
-      manifests: [pyproject.toml, requirements.txt]
-      config_files:
-        - pattern: manage.py
-          mode: exact
-  - technology_id: rust:cargo
-    detect:
-      manifests: [Cargo.toml]
-  - technology_id: infra:terraform
-    detect:
-      file_extensions:
-        - extension: .tf
-          min_count: 1
-  - technology_id: infra:docker
-    detect:
-      config_files:
-        - pattern: Dockerfile
-          mode: exact
+- technology_id: node:react
+  detect:
+    packages:
+    - react
+- technology_id: node:nextjs
+  detect:
+    packages:
+    - next
+- technology_id: node:vue
+  detect:
+    packages:
+    - vue
+- technology_id: node:nuxt
+  detect:
+    packages:
+    - nuxt
+- technology_id: node:angular
+  detect:
+- technology_id: node:svelte
+  detect:
+- technology_id: node:sveltekit
+  detect:
+    packages:
+    - '@sveltejs/kit'
+- technology_id: node:solid
+  detect:
+- technology_id: node:solidstart
+  detect:
+- technology_id: node:qwik
+  detect:
+- technology_id: node:astro
+  detect:
+    packages:
+    - astro
+- technology_id: node:remix
+  detect:
+- technology_id: node:react-router
+  detect:
+- technology_id: node:preact
+  detect:
+- technology_id: node:lit
+  detect:
+- technology_id: node:ember
+  detect:
+- technology_id: node:alpine
+  detect:
+- technology_id: node:htmx
+  detect:
+- technology_id: node:gatsby
+  detect:
+- technology_id: node:docusaurus
+  detect:
+- technology_id: node:vitepress
+  detect:
+- technology_id: node:vuepress
+  detect:
+- technology_id: node:eleventy
+  detect:
+- technology_id: node:redwoodjs
+  detect:
+- technology_id: node:meteor
+  detect:
+- technology_id: node:express
+  detect:
+- technology_id: node:fastify
+  detect:
+    packages:
+    - fastify
+- technology_id: node:nestjs
+  detect:
+    packages:
+    - '@nestjs/core'
+- technology_id: node:koa
+  detect:
+- technology_id: node:hapi
+  detect:
+- technology_id: node:adonisjs
+  detect:
+- technology_id: node:hono
+  detect:
+    packages:
+    - hono
+- technology_id: node:elysia
+  detect:
+- technology_id: node:trpc
+  detect:
+- technology_id: node:apollo-server
+  detect:
+- technology_id: node:graphql-yoga
+  detect:
+- technology_id: node:react-native
+  detect:
+- technology_id: node:expo
+  detect:
+- technology_id: node:ionic
+  detect:
+- technology_id: node:capacitor
+  detect:
+- technology_id: node:nativescript
+  detect:
+- technology_id: node:electron
+  detect:
+    packages:
+    - electron
+- technology_id: rust:tauri
+  detect:
+- technology_id: node:vite
+  detect:
+    packages:
+    - vite
+- technology_id: node:vitest
+  detect:
+    packages:
+    - vitest
+- technology_id: node:typescript
+  detect:
+    packages:
+    - typescript
+- technology_id: node:webpack
+  detect:
+- technology_id: node:rollup
+  detect:
+- technology_id: node:esbuild
+  detect:
+- technology_id: node:parcel
+  detect:
+- technology_id: node:turborepo
+  detect:
+- technology_id: node:nx
+  detect:
+- technology_id: node:jest
+  detect:
+- technology_id: node:playwright
+  detect:
+    packages:
+    - '@playwright/test'
+- technology_id: node:cypress
+  detect:
+- technology_id: node:storybook
+  detect:
+- technology_id: node:tailwindcss
+  detect:
+    packages:
+    - tailwindcss
+- technology_id: node:prisma
+  detect:
+    packages:
+    - '@prisma/client'
+- technology_id: node:drizzle
+  detect:
+- technology_id: node:typeorm
+  detect:
+- technology_id: node:sequelize
+  detect:
+- technology_id: node:mikroorm
+  detect:
+- technology_id: node:mongoose
+  detect:
+- technology_id: node:strapi
+  detect:
+    packages:
+    - '@strapi/strapi'
+- technology_id: node:payload
+  detect:
+- technology_id: node:sanity
+  detect:
+- technology_id: node:serverless
+  detect:
+- technology_id: node:sst
+  detect:
+- technology_id: node:aws-cdk
+  detect:
+- technology_id: node:cdktf
+  detect:
+- technology_id: node:firebase
+  detect:
+    packages:
+    - firebase
+- technology_id: node:supabase
+  detect:
+    packages:
+    - '@supabase/supabase-js'
+- technology_id: node:wrangler
+  detect:
+    config_files:
+    - pattern: wrangler.toml
+      mode: exact
+- technology_id: deno:fresh
+  detect:
+- technology_id: python:project
+  detect:
+    manifests:
+    - pyproject.toml
+- technology_id: python:django
+  detect:
+    packages:
+    - django
+- technology_id: python:flask
+  detect:
+- technology_id: python:fastapi
+  detect:
+    packages:
+    - fastapi
+- technology_id: python:starlette
+  detect:
+- technology_id: python:litestar
+  detect:
+- technology_id: python:sanic
+  detect:
+- technology_id: python:tornado
+  detect:
+- technology_id: python:bottle
+  detect:
+- technology_id: python:falcon
+  detect:
+- technology_id: python:pyramid
+  detect:
+- technology_id: python:quart
+  detect:
+- technology_id: python:streamlit
+  detect:
+- technology_id: python:gradio
+  detect:
+- technology_id: python:dash
+  detect:
+- technology_id: python:panel
+  detect:
+- technology_id: python:jupyter
+  detect:
+- technology_id: python:sqlalchemy
+  detect:
+- technology_id: python:alembic
+  detect:
+- technology_id: python:celery
+  detect:
+    packages:
+    - celery
+- technology_id: python:scrapy
+  detect:
+- technology_id: python:airflow
+  detect:
+- technology_id: python:prefect
+  detect:
+- technology_id: python:dagster
+  detect:
+- technology_id: python:pydantic
+  detect:
+- technology_id: python:pytest
+  detect:
+    packages:
+    - pytest
+- technology_id: python:pytorch
+  detect:
+    packages:
+    - torch
+- technology_id: python:tensorflow
+  detect:
+- technology_id: python:keras
+  detect:
+- technology_id: python:scikit-learn
+  detect:
+    packages:
+    - scikit-learn
+- technology_id: python:jax
+  detect:
+- technology_id: python:transformers
+  detect:
+- technology_id: python:langchain
+  detect:
+    packages:
+    - langchain
+    package_patterns:
+    - langchain-*
+- technology_id: python:llamaindex
+  detect:
+- technology_id: python:pandas
+  detect:
+- technology_id: python:polars
+  detect:
+- technology_id: python:duckdb
+  detect:
+- technology_id: python:ray
+  detect:
+- technology_id: python:mlflow
+  detect:
+- technology_id: python:dbt
+  detect:
+- technology_id: python:poetry
+  detect:
+- technology_id: python:uv
+  detect:
+- technology_id: python:sphinx
+  detect:
+- technology_id: python:mkdocs
+  detect:
+- technology_id: go:module
+  detect:
+    manifests:
+    - go.mod
+- technology_id: go:gin
+  detect:
+    packages:
+    - github.com/gin-gonic/gin
+- technology_id: go:echo
+  detect:
+    packages:
+    - github.com/labstack/echo/v4
+- technology_id: go:fiber
+  detect:
+    packages:
+    - github.com/gofiber/fiber/v2
+- technology_id: go:chi
+  detect:
+    packages:
+    - github.com/go-chi/chi/v5
+- technology_id: go:gorilla-mux
+  detect:
+- technology_id: go:beego
+  detect:
+- technology_id: go:buffalo
+  detect:
+- technology_id: go:go-zero
+  detect:
+- technology_id: go:kratos
+  detect:
+- technology_id: go:gofr
+  detect:
+- technology_id: go:grpc
+  detect:
+- technology_id: go:gqlgen
+  detect:
+- technology_id: go:gorm
+  detect:
+    packages:
+    - gorm.io/gorm
+- technology_id: go:ent
+  detect:
+- technology_id: go:sqlc
+  detect:
+- technology_id: go:cobra
+  detect:
+- technology_id: rust:cargo
+  detect:
+    manifests:
+    - Cargo.toml
+- technology_id: rust:axum
+  detect:
+    packages:
+    - axum
+- technology_id: rust:actix-web
+  detect:
+- technology_id: rust:rocket
+  detect:
+- technology_id: rust:warp
+  detect:
+- technology_id: rust:poem
+  detect:
+- technology_id: rust:salvo
+  detect:
+- technology_id: rust:leptos
+  detect:
+    packages:
+    - leptos
+- technology_id: rust:yew
+  detect:
+- technology_id: rust:dioxus
+  detect:
+- technology_id: rust:bevy
+  detect:
+    packages:
+    - bevy
+- technology_id: rust:tokio
+  detect:
+    packages:
+    - tokio
+- technology_id: rust:diesel
+  detect:
+- technology_id: rust:seaorm
+  detect:
+    packages:
+    - sea-orm
+- technology_id: rust:sqlx
+  detect:
+- technology_id: rust:clap
+  detect:
+- technology_id: rust:egui
+  detect:
+- technology_id: php:composer
+  detect:
+    manifests:
+    - composer.json
+- technology_id: php:laravel
+  detect:
+    packages:
+    - laravel/framework
+- technology_id: php:symfony
+  detect:
+    packages:
+    - symfony/framework-bundle
+- technology_id: php:yii2
+  detect:
+    packages:
+    - yiisoft/yii2
+- technology_id: php:codeigniter
+  detect:
+- technology_id: php:cakephp
+  detect:
+- technology_id: php:slim
+  detect:
+    packages:
+    - slim/slim
+- technology_id: php:laminas
+  detect:
+- technology_id: php:mezzio
+  detect:
+- technology_id: php:drupal
+  detect:
+- technology_id: php:phpunit
+  detect:
+- technology_id: php:pest
+  detect:
+    packages:
+    - pestphp/pest
+- technology_id: ruby:bundle
+  detect:
+    manifests:
+    - Gemfile
+- technology_id: ruby:rails
+  detect:
+    packages:
+    - rails
+- technology_id: ruby:sinatra
+  detect:
+    packages:
+    - sinatra
+- technology_id: ruby:hanami
+  detect:
+    packages:
+    - hanami
+- technology_id: ruby:roda
+  detect:
+- technology_id: ruby:grape
+  detect:
+- technology_id: ruby:jekyll
+  detect:
+- technology_id: ruby:rspec
+  detect:
+    packages:
+    - rspec
+- technology_id: ruby:sidekiq
+  detect:
+- technology_id: java:maven
+  detect:
+    manifests:
+    - pom.xml
+- technology_id: java:gradle
+  detect:
+- technology_id: java:spring
+  detect:
+    content:
+    - file_pattern: pom.xml
+      patterns:
+      - 'org\.springframework'
+      read_limit: 65536
+- technology_id: java:spring-boot
+  detect:
+    content:
+    - file_pattern: pom.xml
+      patterns:
+      - 'org\.springframework\.boot|spring-boot-starter'
+      read_limit: 65536
+- technology_id: java:quarkus
+  detect:
+    content:
+    - file_pattern: pom.xml
+      patterns:
+      - 'io\.quarkus'
+      read_limit: 65536
+- technology_id: java:micronaut
+  detect:
+- technology_id: kotlin:ktor
+  detect:
+- technology_id: java:vertx
+  detect:
+- technology_id: java:dropwizard
+  detect:
+- technology_id: java:javalin
+  detect:
+- technology_id: java:hibernate
+  detect:
+    content:
+    - file_pattern: pom.xml
+      patterns:
+      - 'org\.hibernate'
+      read_limit: 65536
+- technology_id: java:junit
+  detect:
+- technology_id: android:project
+  detect:
+- technology_id: android:compose
+  detect:
+- technology_id: scala:sbt
+  detect:
+    manifests:
+    - build.sbt
+- technology_id: scala:play
+  detect:
+- technology_id: scala:akka
+  detect:
+- technology_id: scala:http4s
+  detect:
+- technology_id: scala:zio
+  detect:
+- technology_id: dotnet:project
+  detect:
+    config_files:
+    - pattern: '*.csproj'
+      mode: glob
+- technology_id: dotnet:aspnetcore
+  detect:
+    content:
+    - file_pattern: '*.csproj'
+      patterns:
+      - 'Microsoft\.NET\.Sdk\.Web|Microsoft\.AspNetCore'
+      read_limit: 65536
+- technology_id: dotnet:blazor
+  detect:
+- technology_id: dotnet:maui
+  detect:
+- technology_id: dotnet:avalonia
+  detect:
+- technology_id: dotnet:orleans
+  detect:
+- technology_id: dotnet:efcore
+  detect:
+    content:
+    - file_pattern: '*.csproj'
+      patterns:
+      - 'Microsoft\.EntityFrameworkCore'
+      read_limit: 65536
+- technology_id: dotnet:xunit
+  detect:
+    content:
+    - file_pattern: '*.csproj'
+      patterns:
+      - 'PackageReference[^>]+Include="xunit'
+      read_limit: 65536
+- technology_id: dotnet:nunit
+  detect:
+- technology_id: dotnet:masstransit
+  detect:
+- technology_id: elixir:mix
+  detect:
+    manifests:
+    - mix.exs
+- technology_id: elixir:phoenix
+  detect:
+    content:
+    - file_pattern: mix.exs
+      patterns:
+      - '\{:phoenix\s*,'
+      read_limit: 65536
+- technology_id: elixir:liveview
+  detect:
+    content:
+    - file_pattern: mix.exs
+      patterns:
+      - '\{:phoenix_live_view\s*,'
+      read_limit: 65536
+- technology_id: elixir:ecto
+  detect:
+    content:
+    - file_pattern: mix.exs
+      patterns:
+      - '\{:(?:ecto|ecto_sql)\s*,'
+      read_limit: 65536
+- technology_id: elixir:absinthe
+  detect:
+    content:
+    - file_pattern: mix.exs
+      patterns:
+      - '\{:absinthe\s*,'
+      read_limit: 65536
+- technology_id: elixir:nerves
+  detect:
+- technology_id: dart:pub
+  detect:
+    manifests:
+    - pubspec.yaml
+- technology_id: dart:flutter
+  detect:
+    content:
+    - file_pattern: pubspec.yaml
+      patterns:
+      - '(?m)^\s*flutter:\s*$|sdk:\s*flutter'
+      read_limit: 65536
+- technology_id: dart:serverpod
+  detect:
+- technology_id: dart:shelf
+  detect:
+- technology_id: dart:riverpod
+  detect:
+    content:
+    - file_pattern: pubspec.yaml
+      patterns:
+      - '(?m)^\s*(?:flutter_)?riverpod:\s*'
+      read_limit: 65536
+- technology_id: dart:bloc
+  detect:
+    content:
+    - file_pattern: pubspec.yaml
+      patterns:
+      - '(?m)^\s*(?:flutter_)?bloc:\s*'
+      read_limit: 65536
+- technology_id: swift:package
+  detect:
+- technology_id: swift:swiftui
+  detect:
+- technology_id: swift:vapor
+  detect:
+- technology_id: clojure:project
+  detect:
+- technology_id: clojure:ring
+  detect:
+- technology_id: clojure:compojure
+  detect:
+- technology_id: clojure:pedestal
+  detect:
+- technology_id: clojure:reitit
+  detect:
+- technology_id: infra:terraform
+  detect:
+- technology_id: infra:docker
+  detect:
+    config_files:
+    - pattern: Dockerfile
+      mode: exact
+- technology_id: infra:docker-compose
+  detect:
+    config_files:
+    - pattern: compose.yaml
+      mode: exact
+- technology_id: infra:kubernetes
+  detect:
+    content:
+    - file_pattern: '*.yaml'
+      patterns:
+      - '(?m)^apiVersion:\s*(?:v1|apps/)'
+      read_limit: 65536
+- technology_id: infra:helm
+  detect:
+    config_files:
+    - pattern: Chart.yaml
+      mode: exact
+- technology_id: infra:kustomize
+  detect:
+    config_files:
+    - pattern: kustomization.yaml
+      mode: exact
+- technology_id: infra:pulumi
+  detect:
+    config_files:
+    - pattern: Pulumi.yaml
+      mode: exact
+- technology_id: infra:packer
+  detect:
+- technology_id: infra:ansible
+  detect:
+- technology_id: infra:vagrant
+  detect:
+- technology_id: infra:nix
+  detect:
+- technology_id: infra:devcontainer
+  detect:
+- technology_id: build:bazel
+  detect:
+- technology_id: build:pants
+  detect:
+- technology_id: build:cmake
+  detect:
+- technology_id: build:meson
+  detect:
+- technology_id: ci:github-actions
+  detect:
+- technology_id: ci:gitlab
+  detect:
+- technology_id: ci:circleci
+  detect:
+- technology_id: ci:jenkins
+  detect:
+- technology_id: ci:buildkite
+  detect:
+- technology_id: ci:azure-pipelines
+  detect:
+- technology_id: cloud:aws-sam
+  detect:
+- technology_id: cloud:cloudformation
+  detect:
+- technology_id: cloud:vercel
+  detect:
+- technology_id: cloud:netlify
+  detect:
+- technology_id: docs:hugo
+  detect:
+- technology_id: game:unity
+  detect:
+    config_files:
+    - pattern: ProjectSettings
+      mode: exact
+- technology_id: game:unreal
+  detect:
+- technology_id: game:godot
+  detect:
+    config_files:
+    - pattern: project.godot
+      mode: exact
+- technology_id: node:phaser
+  detect:
+    packages:
+    - phaser

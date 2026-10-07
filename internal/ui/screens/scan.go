@@ -197,6 +197,9 @@ func (s *Scan) Body() string {
 			score = v.ExternalScore
 		}
 		rows = append(rows, fmt.Sprintf("%s%s %-14s %s (%.2f)", cursor, mark, v.Bucket, v.Skill.Name, score))
+		if v.URL != "" {
+			rows = append(rows, "    "+v.URL)
+		}
 		if len(v.Reasons) > 0 {
 			rows = append(rows, "    "+v.Reasons[0])
 		}

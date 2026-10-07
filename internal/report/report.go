@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-s/internal/model"
+	"go-s/internal/textsafe"
 	"io"
 	"strings"
 	"text/tabwriter"
-	"unicode"
 )
 
 func JSON(w io.Writer, v any) error {
@@ -19,18 +19,15 @@ func JSON(w io.Writer, v any) error {
 }
 
 // Plain removes terminal control characters from untrusted repository strings.
+// It delegates to the shared textsafe implementation so every renderer
+// (tabular and interactive) sanitizes identically.
 func Plain(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, s)
+	return textsafe.Plain(s)
 }
 
 func Table(w io.Writer, result model.ScanResult, verbose bool) error {
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintln(tw, "BUCKET\tSOURCE\tSKILL\tCONFIDENCE / EXTERNAL SCORE\tREASON\tEVIDENCE"); err != nil {
+	if _, err := fmt.Fprintln(tw, "BUCKET\tSOURCE\tSKILL\tCONFIDENCE / EXTERNAL SCORE\tURL\tREASON\tEVIDENCE"); err != nil {
 		return err
 	}
 	for _, s := range result.Suggestions {
@@ -41,7 +38,7 @@ func Table(w io.Writer, result model.ScanResult, verbose bool) error {
 		if s.Bucket == "external" {
 			score = fmt.Sprintf("external %.2f", s.ExternalScore)
 		}
-		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", s.Bucket, Plain(s.Skill.Source), Plain(s.Skill.Name), score, Plain(strings.Join(s.Reasons, "; ")), Plain(strings.Join(s.Evidence, ", "))); err != nil {
+		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", s.Bucket, Plain(s.Skill.Source), Plain(s.Skill.Name), score, Plain(s.URL), Plain(strings.Join(s.Reasons, "; ")), Plain(strings.Join(s.Evidence, ", "))); err != nil {
 			return err
 		}
 	}

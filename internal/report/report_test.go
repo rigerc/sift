@@ -9,7 +9,7 @@ import (
 )
 
 func TestGoldenTable(t *testing.T) {
-	r := model.ScanResult{ResolveResult: model.ResolveResult{Suggestions: []model.Suggestion{{Skill: model.SkillRef{Source: "owner/repo", Name: "one"}, Bucket: "suggested", Confidence: .95, Reasons: []string{"declared dependency"}, Evidence: []string{"go.mod"}}, {Skill: model.SkillRef{Source: "other/repo", Name: "one"}, Bucket: "external", ExternalScore: 42, Reasons: []string{"backend match"}}}}}
+	r := model.ScanResult{ResolveResult: model.ResolveResult{Suggestions: []model.Suggestion{{Skill: model.SkillRef{Source: "owner/repo", Name: "one"}, Bucket: "suggested", Confidence: .95, Reasons: []string{"declared dependency"}, Evidence: []string{"go.mod"}}, {Skill: model.SkillRef{Source: "other/repo", Name: "one"}, Bucket: "external", ExternalScore: 42, URL: "https://github.com/other/repo/tree/main/skills/one", Reasons: []string{"backend match"}}}}}
 	var out bytes.Buffer
 	if err := Table(&out, r, false); err != nil {
 		t.Fatal(err)

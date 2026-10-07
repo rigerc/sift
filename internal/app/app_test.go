@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+
 	"go-s/internal/backend"
 	"go-s/internal/install"
 	"go-s/internal/model"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestGoldenPipeline(t *testing.T) {
@@ -87,30 +89,27 @@ func (f fakeSearch) Search(_ context.Context, _ backend.Query) ([]backend.Extern
 		return nil, errors.New("backend down")
 	}
 	return []backend.ExternalSuggestion{
-		{Skill: model.SkillRef{Source: "askill", Name: "docker-compose"}, Title: "Compose helper", SourceBackend: "fake", ExternalScore: 0.9},
-		{Skill: model.SkillRef{Source: "askill", Name: "plain"}, SourceBackend: "fake", ExternalScore: 0.4},
+		{Skill: model.SkillRef{Source: "acme/compose", Name: "docker-compose"}, URL: "https://github.com/acme/compose/tree/main/skills/docker-compose", Title: "Compose helper", SourceBackend: "fake", ExternalScore: 0.9},
+		{Skill: model.SkillRef{Source: "acme/compose", Name: "plain"}, URL: "https://github.com/acme/compose/tree/main/skills/plain", SourceBackend: "fake", ExternalScore: 0.4},
 	}, nil
 }
 
-func writeBackendsConfig(t *testing.T, dir string) {
-	t.Helper()
-	body := "strategy: fanout\nbackends:\n  - name: fake\n    type: fake-search\n    capabilities: [search]\n"
-	if err := os.WriteFile(filepath.Join(dir, "backends.yaml"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
+// fakeRegistry builds a discovery registry containing the fake backend,
+// standing in for the built-in CLI backends in tests.
+func fakeRegistry(fail bool) func() (*backend.Registry, error) {
+	return func() (*backend.Registry, error) {
+		backend.Register("fake-search", func(cfg backend.Config) (backend.Backend, error) { return fakeSearch{fail: fail}, nil })
+		return backend.NewRegistry([]backend.Config{{Name: "fake", Type: "fake-search", Capabilities: backend.CapSearch}})
 	}
 }
 
 func TestScanOnlineMergesExternalSuggestions(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"react":"1"}}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"react":"1","novel-framework":"1"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	configDir := t.TempDir()
-	writeBackendsConfig(t, configDir)
-	// Registration happens in the injected builder; use the real registry.
-	svc := Service{RegistryBuilder: backend.NewRegistry}
-	backend.Register("fake-search", func(cfg backend.Config) (backend.Backend, error) { return fakeSearch{}, nil })
-	result, err := svc.Scan(context.Background(), root, ScanOptions{Online: true, ConfigDir: configDir})
+	svc := Service{RegistryBuilder: fakeRegistry(false)}
+	result, err := svc.Scan(context.Background(), root, ScanOptions{Online: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +125,9 @@ func TestScanOnlineMergesExternalSuggestions(t *testing.T) {
 	if externals[0].Skill.Name != "docker-compose" || externals[0].ExternalScore != 0.9 || externals[0].SourceBackend != "fake" {
 		t.Fatalf("external ordering/mapping broken: %+v", externals[0])
 	}
+	if externals[0].URL != "https://github.com/acme/compose/tree/main/skills/docker-compose" {
+		t.Fatalf("external GitHub URL not propagated: %+v", externals[0])
+	}
 	if externals[0].Reasons[0] != "matched by fake" || externals[0].Evidence[0] != "Compose helper" {
 		t.Fatalf("unexpected reason/evidence: %+v", externals[0])
 	}
@@ -135,30 +137,27 @@ func TestScanOnlineMergesExternalSuggestions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, b := range plan.Batches {
-		if b.Source == "askill" {
+		if b.Source == "acme/compose" {
 			t.Fatal("external suggestion auto-selected")
 		}
 	}
-	// Explicit selection of an external installs through the backend CLI.
-	plan, err = svc.PlanInstall(root, result, []model.SkillRef{{Source: "askill", Name: "docker-compose"}}, install.Options{})
+	// Explicit selection of an external installs through the npx skills path.
+	plan, err = svc.PlanInstall(root, result, []model.SkillRef{{Source: "acme/compose", Name: "docker-compose"}}, install.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Batches) != 1 || plan.Batches[0].Backend != "askill" {
-		t.Fatalf("backend plan not produced: %+v", plan.Batches)
+	if len(plan.Batches) != 1 || plan.Batches[0].Source != "acme/compose" {
+		t.Fatalf("external plan not produced: %+v", plan.Batches)
 	}
 }
 
 func TestScanOnlineToleratesBackendFailure(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"react":"1"}}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"react":"1","novel-framework":"1"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	configDir := t.TempDir()
-	writeBackendsConfig(t, configDir)
-	backend.Register("fake-search", func(cfg backend.Config) (backend.Backend, error) { return fakeSearch{fail: true}, nil })
-	svc := Service{RegistryBuilder: backend.NewRegistry}
-	result, err := svc.Scan(context.Background(), root, ScanOptions{Online: true, ConfigDir: configDir})
+	svc := Service{RegistryBuilder: fakeRegistry(true)}
+	result, err := svc.Scan(context.Background(), root, ScanOptions{Online: true})
 	if err != nil {
 		t.Fatalf("backend failure must not fail the scan: %v", err)
 	}
@@ -170,5 +169,153 @@ func TestScanOnlineToleratesBackendFailure(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("backend failure not reported as warning: %v", result.Warnings)
+	}
+}
+
+type recordingSearch struct {
+	mu      sync.Mutex
+	queries []backend.Query
+}
+
+func (r *recordingSearch) Name() string { return "recording" }
+
+func (r *recordingSearch) Search(_ context.Context, q backend.Query) ([]backend.ExternalSuggestion, error) {
+	r.mu.Lock()
+	r.queries = append(r.queries, q)
+	r.mu.Unlock()
+
+	value := ""
+	if len(q.Unresolved) > 0 {
+		value = q.Unresolved[0].Value
+	}
+	shared := backend.ExternalSuggestion{
+		Skill:         model.SkillRef{Source: "acme/shared", Name: "shared-helper"},
+		URL:           "https://github.com/acme/shared/tree/main/skills/shared-helper",
+		Title:         "Useful for multiple unresolved tools",
+		SourceBackend: "recording",
+		ExternalScore: 0.40,
+	}
+	unique := backend.ExternalSuggestion{
+		Skill:         model.SkillRef{Source: "acme/unique", Name: value + "-helper"},
+		URL:           "https://github.com/acme/unique/tree/main/skills/" + value + "-helper",
+		SourceBackend: "recording",
+		ExternalScore: 0.95,
+	}
+	return []backend.ExternalSuggestion{unique, shared}, nil
+}
+
+func recordingRegistry(searcher *recordingSearch) func() (*backend.Registry, error) {
+	return func() (*backend.Registry, error) {
+		backend.Register("recording-search", func(cfg backend.Config) (backend.Backend, error) { return searcher, nil })
+		return backend.NewRegistry([]backend.Config{{Name: "recording", Type: "recording-search", Capabilities: backend.CapSearch}})
+	}
+}
+
+func TestDiscoverSkipsSearchWithoutUnresolvedObservations(t *testing.T) {
+	searcher := &recordingSearch{}
+	svc := Service{RegistryBuilder: recordingRegistry(searcher)}
+	got, warnings := svc.discover(context.Background(), nil, []model.MergedSignal{{Key: "node:react", Confidence: 1}})
+	if len(got) != 0 || len(warnings) != 0 {
+		t.Fatalf("context-only discovery should be skipped: got=%+v warnings=%v", got, warnings)
+	}
+	searcher.mu.Lock()
+	defer searcher.mu.Unlock()
+	if len(searcher.queries) != 0 {
+		t.Fatalf("context-only discovery invoked backend: %+v", searcher.queries)
+	}
+}
+
+func TestDiscoverUsesFocusedQueriesAndFusesRepeatedHits(t *testing.T) {
+	searcher := &recordingSearch{}
+	svc := Service{RegistryBuilder: recordingRegistry(searcher)}
+	unresolved := []model.Observation{
+		{Kind: model.ObsPackage, Value: "alpha", Member: "apps/a"},
+		{Kind: model.ObsPackage, Value: "alpha", Member: "apps/b"},
+		{Kind: model.ObsPackage, Value: "beta"},
+	}
+	signals := []model.MergedSignal{
+		{Key: "node:react", Confidence: 0.4},
+		{Key: "tool:docker", Confidence: 0.95},
+		{Key: "lang:go", Confidence: 0.7},
+		{Key: "docs:seo", Confidence: 0.2},
+	}
+	got, warnings := svc.discover(context.Background(), unresolved, signals)
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected fused shared + two unique results, got %+v", got)
+	}
+	if got[0].Skill.Name != "shared-helper" {
+		t.Fatalf("result repeated across focused queries should rank first: %+v", got)
+	}
+
+	searcher.mu.Lock()
+	queries := append([]backend.Query(nil), searcher.queries...)
+	searcher.mu.Unlock()
+	if len(queries) != 2 {
+		t.Fatalf("duplicate unresolved observations should collapse to two focused queries, got %d: %+v", len(queries), queries)
+	}
+	for _, q := range queries {
+		if len(q.Unresolved) != 1 {
+			t.Fatalf("query must contain one unresolved observation: %+v", q)
+		}
+		if len(q.Context) != 3 || q.Context[0].Key != "tool:docker" || q.Context[1].Key != "lang:go" {
+			t.Fatalf("query context was not confidence-ranked/capped: %+v", q.Context)
+		}
+	}
+}
+
+func TestScanDetectsNodeBuildStack(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"dependencies":{"ogl":"1"},"devDependencies":{"electron":"1","electron-builder":"1","vite":"1","vitest":"1","typescript":"1","esbuild":"1"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tsconfig.json"), []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "vite.config.ts"), []byte(`import { defineConfig } from "vite";`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := (Service{}).Scan(context.Background(), root, ScanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, s := range result.Signals {
+		got[s.Key] = true
+	}
+	for _, want := range []string{"node:electron", "node:vite", "node:vitest", "node:typescript"} {
+		if !got[want] {
+			t.Fatalf("missing technology %q, got signals %+v", want, result.Signals)
+		}
+	}
+}
+
+func TestSortSuggestionsByScoreMixesBuckets(t *testing.T) {
+	got := []model.Suggestion{
+		{Skill: model.SkillRef{Source: "o/r", Name: "hidden-low"}, Bucket: "hidden", Confidence: 0.1},
+		{Skill: model.SkillRef{Source: "o/r", Name: "local-mid"}, Bucket: "possible", Confidence: 0.5},
+		{Skill: model.SkillRef{Source: "ext/src", Name: "external-top"}, Bucket: "external", ExternalScore: 0.9},
+		{Skill: model.SkillRef{Source: "o/r", Name: "local-top"}, Bucket: "suggested", Confidence: 0.95},
+		{Skill: model.SkillRef{Source: "ext/src", Name: "external-mid"}, Bucket: "external", ExternalScore: 0.5},
+	}
+	sortSuggestionsByScore(got)
+	want := []string{"local-top", "external-top", "external-mid", "local-mid", "hidden-low"}
+	for i, name := range want {
+		if got[i].Skill.Name != name {
+			t.Fatalf("position %d = %q, want %q (full: %+v)", i, got[i].Skill.Name, name, got)
+		}
+	}
+}
+
+func TestSortSuggestionsByScoreTiebreaksDeterministically(t *testing.T) {
+	got := []model.Suggestion{
+		{Skill: model.SkillRef{Source: "o/r", Name: "b"}, Bucket: "possible", Confidence: 0.5},
+		{Skill: model.SkillRef{Source: "o/r", Name: "a"}, Bucket: "possible", Confidence: 0.5},
+	}
+	sortSuggestionsByScore(got)
+	if got[0].Skill.Name != "a" || got[1].Skill.Name != "b" {
+		t.Fatalf("equal scores must fall back to skill key order: %+v", got)
 	}
 }

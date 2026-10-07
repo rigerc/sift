@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 type Result struct {
@@ -122,8 +124,11 @@ func manifestRuleTarget(base string, rules []model.DetectionRule) bool {
 }
 
 func manifestCandidate(base string, rules []model.DetectionRule) bool {
+	if isRequirementsFile(base) {
+		return true
+	}
 	switch base {
-	case "package.json", "composer.json", "pyproject.toml", "Cargo.toml", "go.mod", "requirements.txt", "Gemfile":
+	case "package.json", "composer.json", "pyproject.toml", "Cargo.toml", "go.mod", "Gemfile", "Pipfile":
 		return true
 	}
 	for _, r := range rules {
@@ -137,12 +142,15 @@ func manifestCandidate(base string, rules []model.DetectionRule) bool {
 }
 
 func manifestDomain(base string) string {
+	if isRequirementsFile(base) {
+		return "python"
+	}
 	switch base {
 	case "package.json":
 		return "npm"
 	case "composer.json":
 		return "composer"
-	case "pyproject.toml", "requirements.txt":
+	case "pyproject.toml", "Pipfile":
 		return "python"
 	case "Cargo.toml":
 		return "cargo"
@@ -155,6 +163,9 @@ func manifestDomain(base string) string {
 }
 
 func packages(base, s string) []string {
+	if isRequirementsFile(base) {
+		return parseRequirements(s)
+	}
 	switch base {
 	case "package.json":
 		var v struct {
@@ -199,19 +210,6 @@ func packages(base, s string) []string {
 			}
 		}
 		return uniqSorted(o)
-	case "requirements.txt":
-		var o []string
-		for _, l := range strings.Split(s, "\n") {
-			l = strings.TrimSpace(l)
-			if l == "" || strings.HasPrefix(l, "#") || strings.HasPrefix(l, "-") {
-				continue
-			}
-			re := regexp.MustCompile(`^([A-Za-z0-9_.-]+)`)
-			if m := re.FindStringSubmatch(l); len(m) > 1 {
-				o = append(o, m[1])
-			}
-		}
-		return uniqSorted(o)
 	case "Gemfile":
 		var o []string
 		re := regexp.MustCompile(`(?m)^\s*gem\s+["']([^"']+)["']`)
@@ -219,43 +217,125 @@ func packages(base, s string) []string {
 			o = append(o, m[1])
 		}
 		return uniqSorted(o)
+	case "pyproject.toml":
+		return parseTOMLDependencies(s, "python")
+	case "Pipfile":
+		return parsePipfileDependencies(s)
+	case "Cargo.toml":
+		return parseTOMLDependencies(s, "cargo")
 	default:
-		return parseTOMLDependencies(s)
+		return nil
 	}
 }
 
-func parseTOMLDependencies(s string) []string {
+func isRequirementsFile(base string) bool {
+	lower := strings.ToLower(base)
+	return strings.HasPrefix(lower, "requirements") && strings.HasSuffix(lower, ".txt")
+}
+
+func parseRequirements(s string) []string {
 	var out []string
-	section := ""
 	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-		if line == "" {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
 			continue
 		}
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			section = strings.ToLower(strings.Trim(line, "[] "))
-			continue
-		}
-		if !strings.Contains(section, "dependenc") && section != "project" {
-			continue
-		}
-		if strings.HasPrefix(section, "project") && strings.HasPrefix(line, "dependencies") {
-			for _, m := range regexp.MustCompile(`['"]([^'"]+)['"]`).FindAllStringSubmatch(line, -1) {
-				if len(m) > 1 {
-					out = append(out, strings.FieldsFunc(m[1], func(r rune) bool { return r == ' ' || r == '<' || r == '>' || r == '=' || r == '!' })[0])
-				}
-			}
-			continue
-		}
-		if i := strings.IndexByte(line, '='); i > 0 {
-			key := strings.TrimSpace(line[:i])
-			key = strings.Trim(key, "\"'")
-			if key != "" {
-				out = append(out, key)
-			}
+		if name := pythonRequirementName(line); name != "" {
+			out = append(out, name)
 		}
 	}
 	return uniqSorted(out)
+}
+
+func parsePipfileDependencies(s string) []string {
+	var doc map[string]any
+	if err := toml.Unmarshal([]byte(s), &doc); err != nil {
+		return nil
+	}
+	var out []string
+	for _, section := range []string{"packages", "dev-packages"} {
+		if value, ok := doc[section]; ok {
+			collectDependencyContainer(value, "python", &out)
+		}
+	}
+	return uniqSorted(out)
+}
+
+func parseTOMLDependencies(s, domain string) []string {
+	var doc map[string]any
+	if err := toml.Unmarshal([]byte(s), &doc); err != nil {
+		return nil
+	}
+	var out []string
+	var visit func(map[string]any)
+	visit = func(m map[string]any) {
+		for key, value := range m {
+			lower := strings.ToLower(key)
+			if lower == "dependencies" || strings.HasSuffix(lower, "-dependencies") || lower == "dependency-groups" {
+				collectDependencyContainer(value, domain, &out)
+			}
+			if child, ok := value.(map[string]any); ok {
+				visit(child)
+			}
+		}
+	}
+	visit(doc)
+	return uniqSorted(out)
+}
+
+func collectDependencyContainer(value any, domain string, out *[]string) {
+	switch v := value.(type) {
+	case []any:
+		for _, item := range v {
+			if raw, ok := item.(string); ok {
+				if name := dependencyStringName(raw, domain); name != "" {
+					*out = append(*out, name)
+				}
+			}
+		}
+	case map[string]any:
+		for key, item := range v {
+			if domain == "python" && strings.EqualFold(key, "python") {
+				continue
+			}
+			if table, ok := item.(map[string]any); ok {
+				if actual, ok := table["package"].(string); ok && actual != "" {
+					*out = append(*out, normalizeDependencyName(actual, domain))
+					continue
+				}
+			}
+			*out = append(*out, normalizeDependencyName(key, domain))
+		}
+	}
+}
+
+func dependencyStringName(raw, domain string) string {
+	if domain == "python" {
+		return pythonRequirementName(raw)
+	}
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) == 0 {
+		return ""
+	}
+	return normalizeDependencyName(fields[0], domain)
+}
+
+var pythonNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*`)
+var pythonNormalizeRE = regexp.MustCompile(`[-_.]+`)
+
+func pythonRequirementName(raw string) string {
+	m := pythonNameRE.FindString(strings.TrimSpace(raw))
+	if m == "" {
+		return ""
+	}
+	return normalizeDependencyName(m, "python")
+}
+
+func normalizeDependencyName(name, domain string) string {
+	if domain == "python" {
+		return pythonNormalizeRE.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-")
+	}
+	return strings.TrimSpace(name)
 }
 
 func jsonMapKeys(s, key string) []string {
@@ -328,8 +408,11 @@ func fileObs(in walk.Result, m walk.Member, rules []model.DetectionRule) []model
 			}
 		}
 		for _, d := range r.Detect.Directories {
+			target := strings.Trim(filepath.ToSlash(d), "/")
 			for _, f := range m.Files {
-				if strings.HasPrefix(filepath.ToSlash(filepath.Dir(f.Path)), strings.TrimSuffix(d, "/")) {
+				relPath := memberRelativePath(m.Root, f.Path)
+				dir := filepath.ToSlash(filepath.Dir(relPath))
+				if dir == target || strings.HasPrefix(dir, target+"/") {
 					out = append(out, model.Observation{Key: "dir:" + d, Kind: model.ObsConfig, Domain: "files", Value: d, Reason: "directory present", Evidence: []string{f.Path}, Layer: 3, Member: m.Root})
 					break
 				}
@@ -338,6 +421,9 @@ func fileObs(in walk.Result, m walk.Member, rules []model.DetectionRule) []model
 	}
 	for _, f := range m.Files {
 		base := filepath.Base(f.Path)
+		if manifestRuleTarget(base, rules) {
+			continue
+		}
 		lower := strings.ToLower(base)
 		if !configured[base] && (strings.Contains(lower, "config") || strings.HasSuffix(lower, ".toml") || strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml")) {
 			out = append(out, model.Observation{Key: "file:" + base, Kind: model.ObsConfig, Domain: "config", Value: base, Reason: "framework-shaped configuration file", Evidence: []string{f.Path}, Layer: 3, Member: m.Root})
@@ -364,15 +450,49 @@ func contextObs(m walk.Member) []model.Observation {
 		if b == "readme.md" || strings.HasPrefix(b, "readme.") {
 			o = append(o, model.Observation{Key: "context:readme", Kind: model.ObsContext, Domain: "docs", Value: "readme", Reason: "README present", Evidence: []string{f.Path}, Layer: 5, Member: m.Root})
 		}
-		if strings.HasPrefix(b, ".github/") {
+		relPath := strings.ToLower(memberRelativePath(m.Root, f.Path))
+		if strings.HasPrefix(relPath, ".github/workflows/") {
 			o = append(o, model.Observation{Key: "context:ci", Kind: model.ObsContext, Domain: "ci", Value: "github-actions", Reason: "CI workflow present", Evidence: []string{f.Path}, Layer: 5, Member: m.Root})
 		}
 	}
 	return o
 }
 
+func memberRelativePath(memberRoot, path string) string {
+	path = filepath.ToSlash(path)
+	root := strings.Trim(filepath.ToSlash(memberRoot), "/")
+	if root == "" || root == "." {
+		return path
+	}
+	prefix := root + "/"
+	if strings.HasPrefix(path, prefix) {
+		return strings.TrimPrefix(path, prefix)
+	}
+	return path
+}
+
 func contentObs(in walk.Result, m walk.Member, rules []model.DetectionRule, unresolved []model.Observation) []model.Observation {
 	var o []model.Observation
+	type cachedRead struct {
+		limit int64
+		data  []byte
+		err   error
+	}
+	cache := map[string]cachedRead{}
+	readCached := func(path string, limit int64) ([]byte, error) {
+		if entry, ok := cache[path]; ok && entry.limit >= limit {
+			if entry.err != nil {
+				return nil, entry.err
+			}
+			if int64(len(entry.data)) > limit {
+				return entry.data[:int(limit)], nil
+			}
+			return entry.data, nil
+		}
+		b, err := readBounded(in.Root, path, limit)
+		cache[path] = cachedRead{limit: limit, data: b, err: err}
+		return b, err
+	}
 	for _, r := range rules {
 		for _, cr := range r.Detect.Content {
 			for _, f := range m.Files {
@@ -388,7 +508,7 @@ func contentObs(in walk.Result, m walk.Member, rules []model.DetectionRule, unre
 				if limit > 65536 {
 					limit = 65536
 				}
-				b, e := readBounded(in.Root, f.Path, limit)
+				b, e := readCached(f.Path, limit)
 				if e != nil {
 					continue
 				}
@@ -416,7 +536,7 @@ func contentObs(in walk.Result, m walk.Member, rules []model.DetectionRule, unre
 			continue
 		}
 		for _, p := range u.Evidence {
-			b, e := readBounded(in.Root, p, 4096)
+			b, e := readCached(p, 4096)
 			if e != nil || bytesBinary(b) || len(strings.TrimSpace(string(b))) == 0 {
 				continue
 			}
@@ -489,6 +609,9 @@ func ruleMatches(o model.Observation, r model.DetectionRule) bool {
 	d := r.Detect
 	switch o.Kind {
 	case model.ObsPackage:
+		if expected := packageDomainForTechnology(r.TechnologyID); expected != "" && o.Domain != expected {
+			return false
+		}
 		for _, x := range d.Packages {
 			if x == o.Value {
 				return true
@@ -536,6 +659,26 @@ func ruleMatches(o model.Observation, r model.DetectionRule) bool {
 		}
 	}
 	return false
+}
+
+func packageDomainForTechnology(technologyID string) string {
+	prefix, _, _ := strings.Cut(technologyID, ":")
+	switch prefix {
+	case "node":
+		return "npm"
+	case "python":
+		return "python"
+	case "go":
+		return "go"
+	case "rust":
+		return "cargo"
+	case "php":
+		return "composer"
+	case "ruby":
+		return "ruby"
+	default:
+		return ""
+	}
 }
 
 func normalize(a []model.Observation) []model.Observation {

@@ -3,7 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"go-s/config"
+	"os"
+	"sort"
+	"strings"
+
 	"go-s/internal/app"
 	"go-s/internal/backend"
 	"go-s/internal/backend/register"
@@ -11,10 +14,6 @@ import (
 	"go-s/internal/model"
 	"go-s/internal/prompt"
 	"go-s/internal/report"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,15 +35,14 @@ func init() {
 
 type scanFlags struct {
 	json, verbose, online bool
-	catalog, backends     string
+	catalog               string
 	depth                 int
 }
 
 func (f *scanFlags) bind(c *cobra.Command) {
 	c.Flags().BoolVar(&f.json, "json", false, "Emit JSON")
-	c.Flags().BoolVar(&f.online, "online", false, "Enable configured discovery backends")
+	c.Flags().BoolVar(&f.online, "online", false, "Enable built-in discovery backends")
 	c.Flags().StringVar(&f.catalog, "catalog", "", "Local rule catalog path or file:// URL")
-	c.Flags().StringVar(&f.backends, "backends", "", "Backend configuration path")
 	c.Flags().IntVar(&f.depth, "max-depth", 8, "Maximum filesystem depth")
 }
 
@@ -62,7 +60,7 @@ func (f scanFlags) options(onlineChanged bool) app.ScanOptions {
 			online = r.Config.Config.Scan.Online
 		}
 	}
-	return app.ScanOptions{Catalog: catalog, MaxDepth: f.depth, Online: online, BackendsPath: f.backends, ConfigDir: filepath.Dir(GetConfigFile())}
+	return app.ScanOptions{Catalog: catalog, MaxDepth: f.depth, Online: online}
 }
 
 func newScanCommand() *cobra.Command {
@@ -102,7 +100,7 @@ func newScanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := validatePlan(commandContext(c), plan, f.options(c.Flags().Changed("online")), allow); err != nil {
+			if err := validatePlan(commandContext(c), plan, f.options(c.Flags().Changed("online")).Online, allow); err != nil {
 				return err
 			}
 			return svc.Install(commandContext(c), plan)
@@ -125,7 +123,7 @@ func newScanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return report.JSON(c.OutOrStdout(), result)
+			return report.ScanJSON(c.OutOrStdout(), result, report.ScanOptions{Verbose: f.verbose, Agents: agents, Global: global})
 		}
 		if !isTTY() {
 			// Headless default: deterministic table for pipes and CI.
@@ -136,14 +134,12 @@ func newScanCommand() *cobra.Command {
 			}
 			return report.Table(c.OutOrStdout(), result, f.verbose)
 		}
-		// TTY default: guided huh flow — print the table first so the
-		// selection prompt has context, then MultiSelect + ConfirmPlan.
+		// TTY default: guided huh flow — summary, selection, and plan
+		// confirmation. The plain table stays a headless-only renderer so
+		// interactive runs never duplicate output into terminal history.
 		svc := app.Service{Output: c.ErrOrStderr()}
 		result, err := svc.Scan(commandContext(c), root, f.options(c.Flags().Changed("online")))
 		if err != nil {
-			return err
-		}
-		if err := report.Table(c.OutOrStdout(), result, f.verbose); err != nil {
 			return err
 		}
 		selected, err := prompt.SelectSkills(result, themeName())
@@ -164,7 +160,7 @@ func newScanCommand() *cobra.Command {
 		if !ok {
 			return nil
 		}
-		if err := validatePlan(commandContext(c), plan, f.options(c.Flags().Changed("online")), allow); err != nil {
+		if err := validatePlan(commandContext(c), plan, f.options(c.Flags().Changed("online")).Online, allow); err != nil {
 			return err
 		}
 		return svc.Install(commandContext(c), plan)
@@ -184,8 +180,7 @@ func newScanCommand() *cobra.Command {
 func newInstallCommand() *cobra.Command {
 	var names, agents []string
 	var yes, dry, global, online, allow, tuiMode bool
-	var backends string
-	c := &cobra.Command{Use: "install <source>", Short: "Install named skills through the pinned upstream CLI", Args: cobra.ExactArgs(1), RunE: func(c *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "install <source>", Short: "Install named skills through the npx skills CLI", Args: cobra.ExactArgs(1), RunE: func(c *cobra.Command, args []string) error {
 		if len(names) == 0 {
 			return fmt.Errorf("at least one --skill is required")
 		}
@@ -225,7 +220,7 @@ func newInstallCommand() *cobra.Command {
 				return nil
 			}
 		}
-		if err := validatePlan(commandContext(c), p, app.ScanOptions{Online: online, BackendsPath: backends, ConfigDir: filepath.Dir(GetConfigFile())}, allow); err != nil {
+		if err := validatePlan(commandContext(c), p, online, allow); err != nil {
 			return err
 		}
 		return (app.Service{Output: c.ErrOrStderr()}).Install(commandContext(c), p)
@@ -237,7 +232,6 @@ func newInstallCommand() *cobra.Command {
 	c.Flags().BoolVar(&global, "global", false, "Use user scope")
 	c.Flags().BoolVar(&online, "online", false, "Run online validation")
 	c.Flags().BoolVar(&allow, "allow-unvalidated", false, "Permit unknown online validation")
-	c.Flags().StringVar(&backends, "backends", "", "Backend configuration path")
 	c.Flags().BoolVar(&tuiMode, "tui", false, "Confirm in the full-screen TUI")
 	return c
 }
@@ -269,7 +263,7 @@ func newStatusCommand() *cobra.Command {
 
 func newUpdateCommand() *cobra.Command {
 	var yes, global, project bool
-	c := &cobra.Command{Use: "update [name...]", Short: "Delegate skill updates to the pinned upstream CLI", RunE: func(c *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "update [name...]", Short: "Delegate skill updates to the npx skills CLI", RunE: func(c *cobra.Command, args []string) error {
 		if !yes {
 			return fmt.Errorf("update requires --yes")
 		}
@@ -316,23 +310,13 @@ func newAgentCommand() *cobra.Command {
 // validatePlan is shared by direct installation and scan automation. Without
 // --online the plan's structural validation is authoritative; with --online the
 // first authoritative validator verdict wins and unknown results require
-// --allow-unvalidated.
-func validatePlan(ctx context.Context, p install.Plan, opts app.ScanOptions, allow bool) error {
-	if !opts.Online {
+// --allow-unvalidated. The built-in registry currently ships search-only
+// backends, so validation degrades to a no-op until a validator ships.
+func validatePlan(ctx context.Context, p install.Plan, online bool, allow bool) error {
+	if !online {
 		return nil
 	}
-	file, _, err := config.LoadBackends(opts.BackendsPath, opts.ConfigDir)
-	if err != nil {
-		return err
-	}
-	cfgs, strategy, err := file.Runtime()
-	if err != nil {
-		return err
-	}
-	if len(cfgs) == 0 {
-		return nil
-	}
-	registry, err := register.New(cfgs, strategy)
+	registry, err := register.New()
 	if err != nil {
 		return err
 	}
@@ -373,7 +357,6 @@ func capabilityNames(c backend.Capability) string {
 	names := []string{}
 	for name, cap := range map[string]backend.Capability{
 		"search": backend.CapSearch, "validate": backend.CapValidate,
-		"report": backend.CapReport, "catalog": backend.CapCatalog,
 	} {
 		if c.Has(cap) {
 			names = append(names, name)
@@ -383,49 +366,36 @@ func capabilityNames(c backend.Capability) string {
 	return strings.Join(names, ",")
 }
 
-// probeCLIBackend builds the built-in adapter for a CLI backend type and runs
-// its pinned-version probe, used to report availability before configuration.
-func probeCLIBackend(ctx context.Context, info register.CLIInfo) (string, error) {
-	factory, ok := backend.FactoryFor(info.Type)
+// probeBackend builds a configured built-in adapter and runs its health
+// probe, used to report availability before a scan needs it.
+func probeBackend(ctx context.Context, cfg backend.Config) (string, error) {
+	factory, ok := backend.FactoryFor(cfg.Type)
 	if !ok {
-		return "", fmt.Errorf("backend type %q is not registered", info.Type)
+		return "", fmt.Errorf("backend type %q is not registered", cfg.Type)
 	}
-	adapter, err := factory(backend.Config{Name: info.Type, Type: info.Type})
+	adapter, err := factory(cfg)
 	if err != nil {
 		return "", err
 	}
 	prober, ok := adapter.(backend.VersionProber)
 	if !ok {
-		return "", fmt.Errorf("backend %s does not support version probing", info.Type)
+		return "", fmt.Errorf("backend %s does not support health probing", cfg.Type)
 	}
 	return prober.Probe(ctx)
 }
 
 func newBackendsCommand() *cobra.Command {
 	var jsonOut bool
-	var path string
-	list := &cobra.Command{Use: "list", Short: "List configured discovery backends", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
-		file, selected, err := config.LoadBackends(path, filepath.Dir(GetConfigFile()))
-		if err != nil {
-			return err
-		}
-		cfgs, _, err := file.Runtime()
-		if err != nil {
-			return err
-		}
+	list := &cobra.Command{Use: "list", Short: "List the built-in discovery backends", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
 		type row struct {
-			Name, Type, Capabilities, Config string
+			Name, Type, Capabilities string
 		}
-		rows := make([]row, 0, len(cfgs))
-		for _, b := range cfgs {
-			rows = append(rows, row{Name: b.Name, Type: b.Type, Capabilities: capabilityNames(b.Capabilities), Config: selected})
+		rows := make([]row, 0, len(register.Builtins()))
+		for _, b := range register.Builtins() {
+			rows = append(rows, row{Name: b.Name, Type: b.Type, Capabilities: capabilityNames(b.Capabilities)})
 		}
 		if jsonOut {
 			return report.JSON(c.OutOrStdout(), rows)
-		}
-		if len(rows) == 0 {
-			_, _ = fmt.Fprintln(c.OutOrStdout(), "no backends configured")
-			return nil
 		}
 		for _, r := range rows {
 			if _, err := fmt.Fprintf(c.OutOrStdout(), "%s\t%s\t%s\n", r.Name, r.Type, r.Capabilities); err != nil {
@@ -435,54 +405,15 @@ func newBackendsCommand() *cobra.Command {
 		return nil
 	}}
 	list.Flags().BoolVar(&jsonOut, "json", false, "Emit JSON")
-	list.Flags().StringVar(&path, "backends", "", "Backend configuration path")
-	check := &cobra.Command{Use: "check", Short: "Verify backend availability and pinned CLI versions", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
-		file, selected, err := config.LoadBackends(path, filepath.Dir(GetConfigFile()))
-		if err != nil {
-			return err
-		}
-		cfgs, strategy, err := file.Runtime()
-		if err != nil {
-			return err
-		}
+	check := &cobra.Command{Use: "check", Short: "Verify built-in backend availability and registry health", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
 		type row struct {
-			Name, Type, Status, Version, Config string
+			Name, Type, Status, Version string
 		}
-		rows := []row{}
-		configuredTypes := map[string]bool{}
-		if len(cfgs) > 0 {
-			registry, err := register.New(cfgs, strategy)
-			if err != nil {
-				return err
-			}
-			for _, cfg := range cfgs {
-				adapter, err := registry.Get(cfg.Name)
-				if err != nil {
-					return err
-				}
-				configuredTypes[cfg.Type] = true
-				r := row{Name: cfg.Name, Type: cfg.Type, Status: "remote", Version: "-", Config: selected}
-				if prober, ok := adapter.(backend.VersionProber); ok {
-					version, err := prober.Probe(commandContext(c))
-					r.Status, r.Version = "unavailable", "-"
-					if version != "" {
-						r.Version = version
-					}
-					if err == nil {
-						r.Status = "ready"
-					}
-				}
-				rows = append(rows, r)
-			}
-		}
-		// Built-in CLI backends are always reported, even unconfigured, so
-		// the command doubles as a setup aid: it shows what could be enabled.
-		for _, info := range register.CLIBackends() {
-			if configuredTypes[info.Type] {
-				continue
-			}
-			r := row{Name: info.Type, Type: info.Type, Status: "unavailable", Version: "-", Config: "-"}
-			version, err := probeCLIBackend(commandContext(c), info)
+		builtins := register.Builtins()
+		rows := make([]row, 0, len(builtins))
+		for _, cfg := range builtins {
+			r := row{Name: cfg.Name, Type: cfg.Type, Status: "unavailable", Version: "-"}
+			version, err := probeBackend(commandContext(c), cfg)
 			if version != "" {
 				r.Version = version
 			}
@@ -494,19 +425,14 @@ func newBackendsCommand() *cobra.Command {
 		if jsonOut {
 			return report.JSON(c.OutOrStdout(), rows)
 		}
-		if len(rows) == 0 {
-			_, _ = fmt.Fprintln(c.OutOrStdout(), "no backends configured")
-			return nil
-		}
 		for _, r := range rows {
-			if _, err := fmt.Fprintf(c.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", r.Name, r.Type, r.Status, r.Version, r.Config); err != nil {
+			if _, err := fmt.Fprintf(c.OutOrStdout(), "%s\t%s\t%s\t%s\n", r.Name, r.Type, r.Status, r.Version); err != nil {
 				return err
 			}
 		}
 		return nil
 	}}
 	check.Flags().BoolVar(&jsonOut, "json", false, "Emit JSON")
-	check.Flags().StringVar(&path, "backends", "", "Backend configuration path")
 	c := &cobra.Command{Use: "backends", Short: "Inspect discovery backends"}
 	c.AddCommand(list, check)
 	return c

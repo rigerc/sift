@@ -72,7 +72,7 @@ type Config struct {
 type ScanConfig struct {
 	Catalog  string `json:"catalog" mapstructure:"catalog" koanf:"catalog" cfg_default:"" cfg_label:"Catalog" cfg_desc:"Optional local rules catalog"`
 	MaxDepth int    `json:"maxDepth" mapstructure:"maxDepth" koanf:"maxDepth" cfg_default:"8" cfg_label:"Maximum Depth" cfg_desc:"Maximum workspace directory depth"`
-	Online   bool   `json:"online" mapstructure:"online" koanf:"online" cfg_default:"true" cfg_label:"Online Discovery" cfg_desc:"Allow configured discovery backends"`
+	Online   bool   `json:"online" mapstructure:"online" koanf:"online" cfg_default:"true" cfg_label:"Online Discovery" cfg_desc:"Allow online discovery backends"`
 }
 
 type InstallConfig struct {

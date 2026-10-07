@@ -7,24 +7,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-s/internal/model"
-	"go-s/internal/rules"
 	"sort"
 	"sync"
 	"time"
 )
 
-// Registry preserves configured priority order and only exposes capabilities
-// explicitly enabled in configuration.
+// Registry preserves built-in priority order and only exposes capabilities
+// explicitly enabled per backend.
 type Registry struct {
 	entries  []entry
-	strategy Strategy
 	cache    *Cache
 	cacheTTL time.Duration
 }
 type entry struct {
 	backend Backend
 	enabled Capability
-	timeout time.Duration
 }
 type Factory func(Config) (Backend, error)
 
@@ -48,14 +45,8 @@ func FactoryFor(kind string) (Factory, bool) {
 	return f, ok
 }
 
-func NewRegistry(configs []Config, strategy Strategy) (*Registry, error) {
-	if strategy == "" {
-		strategy = StrategyFanout
-	}
-	if strategy != StrategyFanout && strategy != StrategyFirstHit {
-		return nil, fmt.Errorf("invalid backend strategy %q", strategy)
-	}
-	r := &Registry{strategy: strategy}
+func NewRegistry(configs []Config) (*Registry, error) {
+	r := &Registry{}
 	seen := map[string]bool{}
 	for _, cfg := range configs {
 		if cfg.Name == "" || seen[cfg.Name] {
@@ -75,7 +66,7 @@ func NewRegistry(configs []Config, strategy Strategy) (*Registry, error) {
 		if !capabilitySupported(b, cfg.Capabilities) {
 			return nil, fmt.Errorf("backend %s does not implement configured capability", cfg.Name)
 		}
-		r.entries = append(r.entries, entry{backend: b, enabled: cfg.Capabilities, timeout: cfg.Timeout})
+		r.entries = append(r.entries, entry{backend: b, enabled: cfg.Capabilities})
 	}
 	return r, nil
 }
@@ -88,16 +79,6 @@ func capabilitySupported(b Backend, caps Capability) bool {
 	}
 	if caps.Has(CapValidate) {
 		if _, ok := b.(Validator); !ok {
-			return false
-		}
-	}
-	if caps.Has(CapReport) {
-		if _, ok := b.(Reporter); !ok {
-			return false
-		}
-	}
-	if caps.Has(CapCatalog) {
-		if _, ok := b.(CatalogProvider); !ok {
 			return false
 		}
 	}
@@ -129,16 +110,6 @@ func (r *Registry) ByCap(c Capability) []Backend {
 				continue
 			}
 		}
-		if c == CapReport {
-			if _, ok := e.backend.(Reporter); !ok {
-				continue
-			}
-		}
-		if c == CapCatalog {
-			if _, ok := e.backend.(CatalogProvider); !ok {
-				continue
-			}
-		}
 		out = append(out, e.backend)
 	}
 	return out
@@ -153,27 +124,11 @@ func (r *Registry) Search(ctx context.Context, q Query) ([]ExternalSuggestion, [
 	}
 	ch := make(chan answer, len(backends))
 	var wg sync.WaitGroup
-	if r.strategy == StrategyFirstHit {
-		var errs []error
-		for _, b := range backends {
-			callCtx, cancel := r.entryContext(ctx, b)
-			v, err := r.searchOne(callCtx, b, q)
-			cancel()
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			if len(v) > 0 {
-				return mergeSuggestions(v), errs
-			}
-		}
-		return nil, errs
-	}
 	for i, b := range backends {
 		wg.Add(1)
 		go func(i int, b Backend) {
 			defer wg.Done()
-			callCtx, cancel := r.entryContext(ctx, b)
+			callCtx, cancel := r.entryContext(ctx)
 			v, err := r.searchOne(callCtx, b, q)
 			cancel()
 			ch <- answer{i, v, err}
@@ -195,11 +150,7 @@ func (r *Registry) Search(ctx context.Context, q Query) ([]ExternalSuggestion, [
 			errs = append(errs, err)
 		}
 	}
-	merged := []ExternalSuggestion{}
-	for _, v := range all {
-		merged = append(merged, v...)
-	}
-	return mergeSuggestions(merged), errs
+	return mergeSuggestions(all, q.Limit), errs
 }
 
 func (r *Registry) searchOne(ctx context.Context, b Backend, q Query) ([]ExternalSuggestion, error) {
@@ -233,36 +184,76 @@ func (r *Registry) searchOne(ctx context.Context, b Backend, q Query) ([]Externa
 	return nil, err
 }
 
-func mergeSuggestions(in []ExternalSuggestion) []ExternalSuggestion {
-	seen := map[string]ExternalSuggestion{}
-	for _, v := range in {
-		if v.Skill.Source == "" || v.Skill.Name == "" {
-			continue
-		}
-		k := v.Skill.Key()
-		if _, ok := seen[k]; !ok {
-			seen[k] = v
+func mergeSuggestions(all [][]ExternalSuggestion, limit int) []ExternalSuggestion {
+	type ranked struct {
+		value        ExternalSuggestion
+		backendIndex int
+		resultIndex  int
+		score        float64
+	}
+
+	seen := map[string]bool{}
+	rankedOut := make([]ranked, 0)
+	for backendIndex, values := range all {
+		for resultIndex, v := range values {
+			if v.Skill.Source == "" || v.Skill.Name == "" {
+				continue
+			}
+			k := v.Skill.Key()
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+
+			upstream := clampExternalScore(v.ExternalScore)
+			position := 1.0 / (1.0 + 0.25*float64(resultIndex))
+			combined := 0.75*position + 0.25*upstream
+			if v.Stale {
+				combined -= 0.05
+			}
+			rankedOut = append(rankedOut, ranked{
+				value: v, backendIndex: backendIndex, resultIndex: resultIndex, score: combined,
+			})
 		}
 	}
-	out := make([]ExternalSuggestion, 0, len(seen))
-	for _, v := range seen {
-		out = append(out, v)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].ExternalScore != out[j].ExternalScore {
-			return out[i].ExternalScore > out[j].ExternalScore
+
+	sort.SliceStable(rankedOut, func(i, j int) bool {
+		if rankedOut[i].score != rankedOut[j].score {
+			return rankedOut[i].score > rankedOut[j].score
 		}
-		return out[i].Skill.Key() < out[j].Skill.Key()
+		if rankedOut[i].value.ExternalScore != rankedOut[j].value.ExternalScore {
+			return rankedOut[i].value.ExternalScore > rankedOut[j].value.ExternalScore
+		}
+		if rankedOut[i].backendIndex != rankedOut[j].backendIndex {
+			return rankedOut[i].backendIndex < rankedOut[j].backendIndex
+		}
+		if rankedOut[i].resultIndex != rankedOut[j].resultIndex {
+			return rankedOut[i].resultIndex < rankedOut[j].resultIndex
+		}
+		return rankedOut[i].value.Skill.Key() < rankedOut[j].value.Skill.Key()
 	})
+
+	if limit > 0 && len(rankedOut) > limit {
+		rankedOut = rankedOut[:limit]
+	}
+	out := make([]ExternalSuggestion, len(rankedOut))
+	for i := range rankedOut {
+		out[i] = rankedOut[i].value
+	}
 	return out
 }
 
-func (r *Registry) entryContext(ctx context.Context, backend Backend) (context.Context, context.CancelFunc) {
-	for _, e := range r.entries {
-		if e.backend.Name() == backend.Name() && e.timeout > 0 {
-			return context.WithTimeout(ctx, e.timeout)
-		}
+func clampExternalScore(score float64) float64 {
+	if score < 0 {
+		return 0
 	}
+	if score > 1 {
+		return 1
+	}
+	return score
+}
+
+func (r *Registry) entryContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithCancel(ctx)
 }
 
@@ -272,7 +263,7 @@ func (r *Registry) Validate(ctx context.Context, skills []model.SkillRef) map[st
 		result[skill.Key()] = Validation{Status: StatusUnknown}
 	}
 	for _, b := range r.ByCap(CapValidate) {
-		callCtx, cancel := r.entryContext(ctx, b)
+		callCtx, cancel := r.entryContext(ctx)
 		v, err := b.(Validator).Validate(callCtx, skills)
 		cancel()
 		if err != nil {
@@ -290,14 +281,4 @@ func (r *Registry) Validate(ctx context.Context, skills []model.SkillRef) map[st
 		}
 	}
 	return result
-}
-
-func (r *Registry) Catalog(ctx context.Context) (rules.Catalog, error) {
-	for _, b := range r.ByCap(CapCatalog) {
-		c, err := b.(CatalogProvider).Catalog(ctx)
-		if err == nil {
-			return c, nil
-		}
-	}
-	return rules.Catalog{}, fmt.Errorf("no catalog provider succeeded")
 }

@@ -16,7 +16,6 @@ import (
 	"go-s/internal/ui/screens"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -95,7 +94,6 @@ func main() {
 
 	services := ui.ServicesFromApp(app.Service{}, app.ScanOptions{
 		Catalog: cfg.Scan.Catalog, MaxDepth: cfg.Scan.MaxDepth, Online: cfg.Scan.Online,
-		ConfigDir: filepath.Dir(configPath),
 	})
 	model := ui.NewWithPersisted(ctx, cancel, *cfg, *runtimeState.Config.Persisted, configPath, false, services)
 	switch req.Screen {
@@ -103,7 +101,7 @@ func main() {
 		deps := ui.ServicesFromApp(app.Service{}, req.ScanOpts)
 		model = ui.NewWithScreen(ctx, cancel, *cfg, *runtimeState.Config.Persisted, configPath, false, screens.NewScan(ctx, req.ScanRoot, deps), deps)
 	case "install":
-		deps := ui.ServicesFromApp(app.Service{}, app.ScanOptions{ConfigDir: filepath.Dir(configPath)})
+		deps := ui.ServicesFromApp(app.Service{}, app.ScanOptions{})
 		model = ui.NewWithScreen(ctx, cancel, *cfg, *runtimeState.Config.Persisted, configPath, false, screens.NewInstall(ctx, req.Plan, deps), deps)
 	}
 	if err := ui.Run(ctx, model); err != nil {

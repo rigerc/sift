@@ -3,3 +3,4 @@ dist/
 debug.log
 dist/skillscan
 .skillscan/
+go-s

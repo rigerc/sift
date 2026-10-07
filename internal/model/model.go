@@ -114,6 +114,7 @@ type Suggestion struct {
 	Members       []string `json:"members"`
 	ExternalScore float64  `json:"externalScore,omitempty"`
 	SourceBackend string   `json:"sourceBackend,omitempty"`
+	URL           string   `json:"url,omitempty"`
 	Stale         bool     `json:"stale,omitempty"`
 }
 type ResolveResult struct {

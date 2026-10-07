@@ -38,3 +38,17 @@ func DefaultConfigPath() string {
 	appName := Slugify(DefaultConfig().App.Name)
 	return filepath.Join(cfgDir, appName, "config.json")
 }
+
+// DefaultCacheDir returns the XDG-compliant cache directory for downloaded
+// backend data (for example the official-skills registry mirror).
+func DefaultCacheDir() string {
+	cacheDir := os.Getenv("XDG_CACHE_HOME")
+	if cacheDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		cacheDir = filepath.Join(home, ".cache")
+	}
+	return filepath.Join(cacheDir, Slugify(DefaultConfig().App.Name), "registry")
+}
