@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"go-s/internal/backend"
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
 )
 
 func registryJSON(skills ...string) string {

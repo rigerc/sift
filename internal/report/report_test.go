@@ -2,10 +2,11 @@ package report
 
 import (
 	"bytes"
-	"go-s/internal/model"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func TestGoldenTable(t *testing.T) {

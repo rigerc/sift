@@ -1,4 +1,4 @@
-module go-s
+module github.com/rigerc/sift
 
 go 1.26.0
 

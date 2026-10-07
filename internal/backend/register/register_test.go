@@ -3,7 +3,7 @@ package register
 import (
 	"testing"
 
-	"go-s/internal/backend"
+	"github.com/rigerc/sift/internal/backend"
 )
 
 func TestBuiltinsResolveAndConstruct(t *testing.T) {

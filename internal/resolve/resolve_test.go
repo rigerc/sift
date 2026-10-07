@@ -1,9 +1,10 @@
 package resolve
 
 import (
-	"go-s/internal/model"
-	"go-s/internal/rules"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/rules"
 )
 
 func TestRunEmbeddedCatalogAndUnresolvedEligibility(t *testing.T) {

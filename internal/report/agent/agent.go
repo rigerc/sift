@@ -4,11 +4,12 @@ package agent
 import (
 	"embed"
 	"fmt"
-	"go-s/internal/model"
-	"go-s/internal/report"
 	"io"
 	"slices"
 	"strings"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/report"
 )
 
 const TemplateVersion = "1"
@@ -87,7 +88,7 @@ func Markdown(w io.Writer, result model.ScanResult, opts Options) error {
 	if err != nil {
 		return err
 	}
-	if _, err = fmt.Fprintf(w, "# skillscan assessment\n\nTemplate version: %s\n\n", TemplateVersion); err != nil {
+	if _, err = fmt.Fprintf(w, "# sift assessment\n\nTemplate version: %s\n\n", TemplateVersion); err != nil {
 		return err
 	}
 	// JSON-quoted data in a fence longer than any input backtick run prevents

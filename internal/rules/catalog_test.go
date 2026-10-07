@@ -1,8 +1,9 @@
 package rules
 
 import (
-	"go-s/internal/model"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func TestEmbeddedCatalogBreadthAndRepresentativeIDs(t *testing.T) {

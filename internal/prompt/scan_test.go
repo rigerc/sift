@@ -2,9 +2,10 @@ package prompt
 
 import (
 	"errors"
-	"go-s/internal/model"
 	"strings"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func fixtureResult() model.ScanResult {

@@ -2,11 +2,12 @@ package detect
 
 import (
 	"context"
-	"go-s/internal/model"
-	"go-s/internal/walk"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/walk"
 )
 
 func TestRunRetainsUnknownPackagesAndMatchesWaves(t *testing.T) {

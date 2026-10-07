@@ -6,11 +6,11 @@ import (
 	"strings"
 	"unicode"
 
-	"go-s/internal/plan"
+	"github.com/rigerc/sift/internal/plan"
 )
 
 // PlanText renders an already validated plan without applying it. The upstream
-// tool, not skillscan, resolves conflicts with existing installations.
+// tool, not sift, resolves conflicts with existing installations.
 func PlanText(w io.Writer, p plan.Plan) error {
 	if strings.ContainsFunc(p.Root, unicode.IsControl) {
 		return fmt.Errorf("workspace path contains terminal control characters")

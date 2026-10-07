@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode"
 
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/model"
 )
 
 // Package is the upstream skills CLI, installed on demand by npx. It is

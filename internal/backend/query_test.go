@@ -1,8 +1,9 @@
 package backend
 
 import (
-	"go-s/internal/model"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func queryFixture() Query {

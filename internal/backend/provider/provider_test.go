@@ -3,8 +3,8 @@ package provider
 import (
 	"testing"
 
-	"go-s/internal/backend"
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
 )
 
 func TestSearchQueryUsesPrimaryAndStrongestContext(t *testing.T) {

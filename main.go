@@ -1,4 +1,4 @@
-// skillscan scans workspaces and generates plans; it never installs skills.
+// sift scans workspaces and generates plans; it never installs skills.
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"go-s/cmd"
+	"github.com/rigerc/sift/cmd"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func run() int {
 	defer stop()
 	cmd.SetContext(ctx)
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "skillscan: %v\n", err)
+		fmt.Fprintf(os.Stderr, "sift: %v\n", err)
 		return 1
 	}
 	return 0

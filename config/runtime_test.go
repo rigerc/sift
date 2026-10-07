@@ -13,7 +13,7 @@ func TestEffectivePrecedence(t *testing.T) {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("SKILLSCAN_CATALOG_URL", "environment")
+	t.Setenv("SIFT_CATALOG_URL", "environment")
 	// Removed environment settings must have no effect or validation.
 	t.Setenv("SKILLSCAN_DEBUG", "invalid")
 	t.Setenv("SKILLSCAN_LOG_LEVEL", "invalid")
@@ -55,6 +55,18 @@ func TestMissingAndMalformedPaths(t *testing.T) {
 		if _, err := LoadEffective(path, explicit, RuntimeOverrides{}); !errors.Is(err, ErrInvalidConfig) {
 			t.Fatalf("malformed: %v", err)
 		}
+	}
+}
+
+func TestLegacyCatalogEnvironmentIgnored(t *testing.T) {
+	t.Setenv("SIFT_CATALOG_URL", "")
+	if err := os.Unsetenv("SIFT_CATALOG_URL"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SKILLSCAN_CATALOG_URL", "retired")
+	got, err := LoadEffective(filepath.Join(t.TempDir(), "missing"), false, RuntimeOverrides{})
+	if err != nil || got.Config.Scan.Catalog != "" {
+		t.Fatalf("retired environment setting applied: %+v %v", got, err)
 	}
 }
 

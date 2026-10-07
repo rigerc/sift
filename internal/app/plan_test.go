@@ -7,9 +7,9 @@ import (
 	"reflect"
 	"testing"
 
-	"go-s/internal/backend"
-	"go-s/internal/model"
-	"go-s/internal/plan"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/plan"
 )
 
 func TestBuildPlanDefaultSelectionRequiresRecommendedLocalCatalog(t *testing.T) {

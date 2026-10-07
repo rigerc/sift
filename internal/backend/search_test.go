@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"go-s/internal/model"
+	"github.com/rigerc/sift/internal/model"
 )
 
 type cachedSearch struct {

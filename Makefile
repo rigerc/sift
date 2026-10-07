@@ -2,7 +2,7 @@
 
 build:
 	mkdir -p dist
-	go build -o dist/skillscan .
+	go build -o dist/sift .
 
 test:
 	go test ./...

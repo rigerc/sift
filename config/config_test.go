@@ -59,23 +59,23 @@ func TestLoadReadOnly(t *testing.T) {
 	}
 }
 
-func TestLiteralLegacyPaths(t *testing.T) {
+func TestSiftPaths(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	t.Setenv("XDG_CACHE_HOME", dir)
-	if got := DefaultConfigPath(); got != filepath.Join(dir, "a-go-s", "config.json") {
+	if got := DefaultConfigPath(); got != filepath.Join(dir, "sift", "config.json") {
 		t.Fatal(got)
 	}
-	if got := DefaultCacheDir(); got != filepath.Join(dir, "a-go-s", "registry") {
+	if got := DefaultCacheDir(); got != filepath.Join(dir, "sift", "registry") {
 		t.Fatal(got)
 	}
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("XDG_CACHE_HOME", "")
 	t.Setenv("HOME", dir)
-	if got := DefaultConfigPath(); got != filepath.Join(dir, ".config", "a-go-s", "config.json") {
+	if got := DefaultConfigPath(); got != filepath.Join(dir, ".config", "sift", "config.json") {
 		t.Fatal(got)
 	}
-	if got := DefaultCacheDir(); got != filepath.Join(dir, ".cache", "a-go-s", "registry") {
+	if got := DefaultCacheDir(); got != filepath.Join(dir, ".cache", "sift", "registry") {
 		t.Fatal(got)
 	}
 }

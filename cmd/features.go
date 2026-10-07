@@ -6,22 +6,24 @@ import (
 	"os"
 	"strings"
 
-	"go-s/config"
-	"go-s/internal/app"
-	"go-s/internal/backend"
-	"go-s/internal/backend/register"
-	"go-s/internal/model"
-	"go-s/internal/plan"
-	"go-s/internal/prompt"
-	"go-s/internal/report"
-	agentreport "go-s/internal/report/agent"
+	"github.com/rigerc/sift/config"
+	"github.com/rigerc/sift/internal/app"
+	"github.com/rigerc/sift/internal/backend"
+	"github.com/rigerc/sift/internal/backend/register"
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/plan"
+	"github.com/rigerc/sift/internal/prompt"
+	"github.com/rigerc/sift/internal/report"
+	agentreport "github.com/rigerc/sift/internal/report/agent"
 
 	"github.com/spf13/cobra"
 )
 
 // Indirections keep machine-mode and cancellation tests independent of a TTY.
-var ttyDetected = prompt.IsTTY
-var selectSkills = prompt.SelectSkillsContext
+var (
+	ttyDetected  = prompt.IsTTY
+	selectSkills = prompt.SelectSkillsContext
+)
 
 func commandContext(c *cobra.Command) context.Context {
 	if r := Runtime(); r != nil {
@@ -53,7 +55,7 @@ func effectiveConfig() *config.Config {
 		return r.Config.Config
 	}
 	cfg := config.DefaultConfig()
-	if value, ok := os.LookupEnv("SKILLSCAN_CATALOG_URL"); ok {
+	if value, ok := os.LookupEnv("SIFT_CATALOG_URL"); ok {
 		cfg.Scan.Catalog = value
 	}
 	return cfg

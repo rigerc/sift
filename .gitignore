@@ -2,5 +2,8 @@ coverage.txt
 dist/
 debug.log
 dist/skillscan
+dist/sift
 .skillscan/
 go-s
+/sift
+/.pi/

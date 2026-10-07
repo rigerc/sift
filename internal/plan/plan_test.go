@@ -1,9 +1,10 @@
 package plan
 
 import (
-	"go-s/internal/model"
 	"reflect"
 	"testing"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 func TestOrderedBatchesAndCollision(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"io"
 	"strings"
 
-	"go-s/internal/model"
-	"go-s/internal/plan"
+	"github.com/rigerc/sift/internal/model"
+	"github.com/rigerc/sift/internal/plan"
 )
 
 // ScanSchemaVersion identifies the machine-readable scan envelope contract.
@@ -13,7 +13,7 @@ import (
 // deliberate breaking change from the raw model.ScanResult shape.
 const (
 	ScanSchemaVersion = "1"
-	ScanKind          = "skillscan.scan"
+	ScanKind          = "sift.scan"
 )
 
 // ScanOptions controls the scan envelope. Compact is the default; Verbose

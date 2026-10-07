@@ -1,9 +1,10 @@
 package detect
 
 import (
-	"go-s/internal/model"
 	"slices"
 	"sort"
+
+	"github.com/rigerc/sift/internal/model"
 )
 
 // Merge combines per-layer signals into deterministic, workspace-scoped

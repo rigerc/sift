@@ -41,7 +41,7 @@ func (c Client) Get(ctx context.Context, path string, params url.Values) ([]byte
 		return nil, fmt.Errorf("httpx: GET %s: %w", c.safe(path), err)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "skillscan")
+	req.Header.Set("User-Agent", "sift")
 	if c.Auth != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Auth)
 	}

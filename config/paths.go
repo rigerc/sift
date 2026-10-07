@@ -15,7 +15,7 @@ func DefaultConfigPath() string {
 		}
 		dir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(dir, "a-go-s", "config.json")
+	return filepath.Join(dir, "sift", "config.json")
 }
 
 func DefaultCacheDir() string {
@@ -27,5 +27,5 @@ func DefaultCacheDir() string {
 		}
 		dir = filepath.Join(home, ".cache")
 	}
-	return filepath.Join(dir, "a-go-s", "registry")
+	return filepath.Join(dir, "sift", "registry")
 }
